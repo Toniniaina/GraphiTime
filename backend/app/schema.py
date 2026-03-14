@@ -13,6 +13,17 @@ class DbStatus:
 
 
 @strawberry.type
+class Professor:
+    id: str
+    name: str
+
+
+@strawberry.input
+class CreateProfessorInput:
+    name: str
+
+
+@strawberry.type
 class Query:
     @strawberry.field
     def ping(self) -> str:
@@ -32,5 +43,30 @@ class Query:
         except Exception as e:
             return DbStatus(ok=False, db_time="", db_version="", error=str(e))
 
+    @strawberry.field
+    def professors(self) -> list[Professor]:
+        with psycopg.connect(settings.database_url, connect_timeout=3) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, name FROM professors ORDER BY id")
+                rows = cur.fetchall() or []
 
-schema = strawberry.Schema(query=Query)
+        return [Professor(id=str(r[0]), name=str(r[1])) for r in rows]
+
+
+@strawberry.type
+class Mutation:
+    @strawberry.mutation
+    def create_professor(self, input: CreateProfessorInput) -> Professor:
+        with psycopg.connect(settings.database_url, connect_timeout=3) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO professors (name) VALUES (%s) RETURNING id, name",
+                    (input.name,),
+                )
+                row = cur.fetchone()
+            conn.commit()
+
+        return Professor(id=str(row[0]), name=str(row[1]))
+
+
+schema = strawberry.Schema(query=Query, mutation=Mutation)
