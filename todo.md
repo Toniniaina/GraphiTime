@@ -13,7 +13,7 @@ Ce projet est très pratique et valorisant : il montre que tu sais gérer des **
 ---
 
 ## Technologies choisies
-- **Backend : Python (Flask ou Django) avec GraphQL** → exposera les **API GraphQL** pour le frontend  
+- **Backend : Python (FastAPI) avec GraphQL (Strawberry)** → exposera les **API GraphQL** pour le frontend  
 - **Frontend : React** → pour visualiser et manipuler l’emploi du temps  
 - **Base de données : PostgreSQL** → pour stocker profs, classes, matières, créneaux, salles  
 - **Algorithme principal : Graph Coloring** → pour assigner les cours aux créneaux sans conflits
@@ -22,7 +22,7 @@ Ce projet est très pratique et valorisant : il montre que tu sais gérer des **
 
 ## Architecture générale
 
-[Frontend React] <--GraphQL--> [Backend Python (Flask/Django)]
+[Frontend React] <--GraphQL--> [Backend Python (FastAPI)]
 |
 |-- Graph Coloring (CSP)
 |-- Gestion des contraintes externes (profs multi-emplois)
@@ -54,20 +54,20 @@ Ce projet est très pratique et valorisant : il montre que tu sais gérer des **
   - Endpoint santé : `GET /health`
   - Endpoint GraphQL : `/graphql`
   - Query de test : `ping`
+- [x] Ajouter un test DB via GraphQL : `dbStatus` (vérifie la connexion PostgreSQL)
 - [x] Ajouter un guide de lancement (`backend/README.md`)
-- [ ] Ajouter la config via variables d’environnement (`.env`) et charger selon l’environnement (dev/prod)
-- [ ] Mettre en place la connexion PostgreSQL
-- [ ] Définir le modèle de données (ORM) + migrations
+- [x] Ajouter la config via variables d’environnement (`backend/.env`) et charger automatiquement
+- [x] Mettre en place la connexion PostgreSQL (driver + test au démarrage)
 - [ ] Implémenter le schéma GraphQL (types, queries, mutations)
 - [ ] Ajouter validation, gestion d’erreurs, et pagination
 - [ ] Ajouter tests (unitaires + API)
 
-- Créer la **base de données PostgreSQL** avec tables :  
-  - `Profs(id, nom, disponibilites_externes)`  
-  - `Classes(id, nom)`  
-  - `Matieres(id, nom)`  
-  - `Salles(id, nom, capacite)`  
-  - `Cours(id, matiere_id, classe_id, prof_id, salle_id)`  
+- [x] Définir le schéma SQL PostgreSQL (`db/schema.sql`)
+  - IDs en `VARCHAR` avec préfixes (ex: `PRF00001`, `CLS00001`, `SUB00001`, `ROM00001`, `CRS00001`, `SES00001`)
+  - Volume hebdo en heures : `required_hours_per_week` (ex: 10.0)
+  - Séances à durée variable (positionnées via `day_of_week`, `start_minute`, `end_minute`)
+  - Anti-chevauchement via contraintes `EXCLUDE` (prof/classe/salle)
+- [ ] Créer la base locale `graphitime` (PostgreSQL) et exécuter `db/schema.sql`
 - Implémenter **Graph Coloring** :  
   - Chaque cours = nœud  
   - Conflit = arête (même prof, même salle, même classe, disponibilité externe)  
