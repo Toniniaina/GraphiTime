@@ -85,6 +85,14 @@ Ce projet est très pratique et valorisant : il montre que tu sais gérer des **
 ---
 
 ### 3️⃣ Frontend React
+#### Initialisation frontend (Vite + React + TypeScript)
+- [x] Créer le dossier `frontend/` (Vite + React TS)
+- [ ] Installer les dépendances (`npm install`)
+- [ ] Lancer le serveur de dev (`npm run dev`)
+- [ ] Ajouter une première page avec appel GraphQL `ping`
+- [ ] Ajouter un client GraphQL (Apollo Client ou urql)
+- [ ] Ajouter routing (React Router) et structure de pages
+
 - Créer **interface calendrier** :  
   - Grille semaine ou mois  
   - Chaque cours coloré par matière  

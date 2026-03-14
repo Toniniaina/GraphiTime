@@ -37,3 +37,14 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Node / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Vite
+frontend/dist/
+frontend/.vite/
