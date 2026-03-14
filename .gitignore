@@ -48,3 +48,10 @@ pnpm-debug.log*
 # Vite
 frontend/dist/
 frontend/.vite/
+
+# Docs locales (non versionnées)
+db/schema_doc.md
+
+
+
+
