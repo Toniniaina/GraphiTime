@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from './assets/vite.svg'
 import heroImg from './assets/hero.png'
@@ -6,6 +6,40 @@ import './App.css'
 
 function App() {
   const [count, setCount] = useState(0)
+  const [ping, setPing] = useState<string>('')
+  const [pingError, setPingError] = useState<string>('')
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function run() {
+      try {
+        const res = await fetch('/graphql', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ query: 'query { ping }' }),
+        })
+
+        const json = await res.json()
+        if (!res.ok) {
+          throw new Error(json?.errors?.[0]?.message ?? `HTTP ${res.status}`)
+        }
+
+        if (!cancelled) {
+          setPing(json?.data?.ping ?? '')
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setPingError(e instanceof Error ? e.message : String(e))
+        }
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <>
@@ -27,6 +61,17 @@ function App() {
         >
           Count is {count}
         </button>
+
+        <div style={{ marginTop: 16 }}>
+          <div>
+            <strong>Backend GraphQL ping:</strong> {ping ? ping : '...'}
+          </div>
+          {pingError ? (
+            <div style={{ color: 'crimson' }}>
+              <strong>Error:</strong> {pingError}
+            </div>
+          ) : null}
+        </div>
       </section>
 
       <div className="ticks"></div>
