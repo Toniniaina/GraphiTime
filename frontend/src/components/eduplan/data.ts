@@ -113,6 +113,7 @@ export const INITIAL_CLASSES: SchoolClass[] = [
 
 export const NAV_ITEMS: Array<{ icon: string; label: string; key: string }> = [
   { icon: '◉', label: 'Planning', key: 'planning' },
+  { icon: '◎', label: 'Algo test', key: 'algo' },
   { icon: '⊞', label: 'Classes', key: 'classes' },
   { icon: '⊛', label: 'Professeurs', key: 'teachers' },
   { icon: '◈', label: 'Salles', key: 'rooms' },

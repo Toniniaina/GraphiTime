@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { DAYS, HOURS, SUBJECT_COLORS, WEEKS } from './data'
 import { S } from './styles'
 import type { DbClass, DbProfessorUnavailability, DbScheduledSession } from './types'
@@ -24,7 +24,13 @@ export function PlanningPage({
   const [selectedWeek, setSelectedWeek] = useState(0)
   const [hoveredBlock, setHoveredBlock] = useState<number | null>(null)
 
-  const classSessions = scheduledSessions.filter((s) => s.course.schoolClass.name === selectedClass)
+  useEffect(() => {
+    if (!classes.length) return
+    if (selectedClass && classes.some((c) => c.id === selectedClass)) return
+    setSelectedClass(classes[0].id)
+  }, [classes, selectedClass, setSelectedClass])
+
+  const classSessions = scheduledSessions.filter((s) => s.course.schoolClass.id === selectedClass)
 
   const formatHours = (hours: number) => {
     const rounded = Math.round(hours * 10) / 10
@@ -39,8 +45,8 @@ export function PlanningPage({
   const hoursByClass = (() => {
     const m = new Map<string, number>()
     for (const ses of scheduledSessions) {
-      const cn = ses.course.schoolClass.name
-      m.set(cn, (m.get(cn) ?? 0) + (ses.endMinute - ses.startMinute) / 60)
+      const cid = ses.course.schoolClass.id
+      m.set(cid, (m.get(cid) ?? 0) + (ses.endMinute - ses.startMinute) / 60)
     }
     return m
   })()
@@ -147,9 +153,14 @@ export function PlanningPage({
           </div>
           <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} style={S.classSelect}>
             {classes.map((c) => (
-              <option key={c.id}>{c.name}</option>
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
             ))}
           </select>
+          <div style={{ fontSize: 12, color: 'rgba(13,31,53,0.35)', marginLeft: 8 }}>
+            Debug: selectedClass={selectedClass || '(vide)'} · sessions={scheduledSessions.length} · classSessions={classSessions.length} · merged={mergedSessions.length}
+          </div>
           <button style={S.addBtn}>＋ Ajouter</button>
         </div>
       </header>
@@ -235,9 +246,9 @@ export function PlanningPage({
       </div>
 
       <div style={S.legend}>
-        {Object.entries(SUBJECT_COLORS).map(([subj, color]) => (
+        {Array.from(new Set(mergedSessions.map((s) => s.course.subject.name))).map((subj) => (
           <div key={subj} style={S.legendItem}>
-            <div style={{ ...S.legendDot, background: color }} />
+            <div style={{ ...S.legendDot, background: SUBJECT_COLORS[subj] || '#1a3a5c' }} />
             <span style={S.legendText}>{subj}</span>
           </div>
         ))}

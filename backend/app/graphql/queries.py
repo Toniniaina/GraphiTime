@@ -4,6 +4,7 @@ from ..repositories.professor_repository import ProfessorRepository
 from ..repositories.school_repository import SchoolRepository
 from ..services.professor_service import ProfessorService
 from ..services.school_service import SchoolService
+from ..services.scheduling_service import SchedulingService
 from .context import GraphQLContext
 from .types import (
     Course,
@@ -69,6 +70,34 @@ class Query:
                     subject=Subject(id=sub_id, name=sub_name),
                     school_class=SchoolClass(id=cls_id, name=cls_name),
                     professor=Professor(id=prof_id, name=prof_name),
+                )
+            )
+        return out
+
+    @strawberry.field
+    def generate_schedule_preview(self, info: strawberry.Info[GraphQLContext, None]) -> list[ScheduledSession]:
+        svc = SchedulingService(info.context.db_pool)
+        generated = svc.generate_preview()
+
+        out: list[ScheduledSession] = []
+        for ses in generated:
+            room = Room(id=ses.room.id, name=ses.room.name, capacity=ses.room.capacity)
+            course = Course(
+                id=ses.course.id,
+                required_hours_per_week=ses.course.required_hours_per_week,
+                subject=Subject(id=ses.course.subject_id, name=ses.course.subject_name),
+                school_class=SchoolClass(id=ses.course.class_id, name=ses.course.class_name),
+                professor=Professor(id=ses.course.professor_id, name=ses.course.professor_name),
+            )
+            out.append(
+                ScheduledSession(
+                    id=ses.id,
+                    day_of_week=ses.day_of_week,
+                    start_minute=ses.start_minute,
+                    end_minute=ses.end_minute,
+                    created_at=ses.created_at,
+                    course=course,
+                    room=room,
                 )
             )
         return out
