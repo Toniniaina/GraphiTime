@@ -1,14 +1,27 @@
 import { useEffect, useState } from 'react'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import './App.css'
 import { EduPlanShell, type EduPlanNavKey } from './components/eduplan/EduPlanShell'
 import { PlanningPage } from './components/eduplan/PlanningPage'
 import { ClassesPage } from './components/eduplan/ClassesPage'
 import { TeachersPage } from './components/eduplan/TeachersPage'
-import { PlaceholderPage } from './components/eduplan/PlaceholderPage'
-import type { Professor } from './components/eduplan/types'
+import { RoomsPage } from './components/eduplan/RoomsPage'
+import { SubjectsPage } from './components/eduplan/SubjectsPage'
+import { SettingsPage } from './components/eduplan/SettingsPage'
+import type {
+  DbClass,
+  DbCourse,
+  DbProfessorUnavailability,
+  DbRoom,
+  DbScheduledSession,
+  DbSubject,
+  Professor,
+} from './components/eduplan/types'
 
 export default function AppEduPlan() {
-  const [activeNav, setActiveNav] = useState<EduPlanNavKey>('planning')
+  const location = useLocation()
+  const navigate = useNavigate()
+
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [quickClass, setQuickClass] = useState('6ème A')
 
@@ -20,6 +33,36 @@ export default function AppEduPlan() {
   const [professors, setProfessors] = useState<Professor[]>([])
   const [newProfessorName, setNewProfessorName] = useState<string>('')
   const [profError, setProfError] = useState<string>('')
+
+  const [classes, setClasses] = useState<DbClass[]>([])
+  const [rooms, setRooms] = useState<DbRoom[]>([])
+  const [subjects, setSubjects] = useState<DbSubject[]>([])
+  const [courses, setCourses] = useState<DbCourse[]>([])
+  const [scheduledSessions, setScheduledSessions] = useState<DbScheduledSession[]>([])
+  const [professorUnavailability, setProfessorUnavailability] = useState<DbProfessorUnavailability[]>([])
+
+  const activeNav: EduPlanNavKey = (() => {
+    const p = location.pathname
+    if (p.startsWith('/planning')) return 'planning'
+    if (p.startsWith('/classes')) return 'classes'
+    if (p.startsWith('/teachers')) return 'teachers'
+    if (p.startsWith('/rooms')) return 'rooms'
+    if (p.startsWith('/subjects')) return 'subjects'
+    if (p.startsWith('/settings')) return 'settings'
+    return 'planning'
+  })()
+
+  const setActiveNav = (key: EduPlanNavKey) => {
+    const map: Record<EduPlanNavKey, string> = {
+      planning: '/planning',
+      classes: '/classes',
+      teachers: '/teachers',
+      rooms: '/rooms',
+      subjects: '/subjects',
+      settings: '/settings',
+    }
+    navigate(map[key])
+  }
 
   async function graphql<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
     const res = await fetch('/graphql', {
@@ -40,12 +83,52 @@ export default function AppEduPlan() {
       ping: string
       dbStatus: { ok: boolean; dbTime: string; dbVersion: string; error?: string | null }
       professors: Array<{ id: string; name: string }>
-    }>('query { ping dbStatus { ok dbTime dbVersion error } professors { id name } }')
+      classes: Array<{ id: string; name: string }>
+      rooms: Array<{ id: string; name: string; capacity: number }>
+      subjects: Array<{ id: string; name: string }>
+      courses: Array<{
+        id: string
+        requiredHoursPerWeek: number
+        subject: { id: string; name: string }
+        schoolClass: { id: string; name: string }
+        professor: { id: string; name: string }
+      }>
+      scheduledSessions: Array<{
+        id: string
+        dayOfWeek: number
+        startMinute: number
+        endMinute: number
+        createdAt: string
+        course: {
+          id: string
+          requiredHoursPerWeek: number
+          subject: { id: string; name: string }
+          schoolClass: { id: string; name: string }
+          professor: { id: string; name: string }
+        }
+        room: { id: string; name: string; capacity: number }
+      }>
+      professorUnavailability: Array<{
+        id: string
+        dayOfWeek: number
+        startTime: string
+        endTime: string
+        professor: { id: string; name: string }
+      }>
+    }>(
+      'query { ping dbStatus { ok dbTime dbVersion error } professors { id name } classes { id name } rooms { id name capacity } subjects { id name } courses { id requiredHoursPerWeek subject { id name } schoolClass { id name } professor { id name } } scheduledSessions { id dayOfWeek startMinute endMinute createdAt room { id name capacity } course { id requiredHoursPerWeek subject { id name } schoolClass { id name } professor { id name } } } professorUnavailability { id dayOfWeek startTime endTime professor { id name } } }',
+    )
 
     setPing(data.ping)
     setDbOk(data.dbStatus.ok)
     setDbError(data.dbStatus.error ?? '')
     setProfessors(data.professors)
+    setClasses(data.classes)
+    setRooms(data.rooms)
+    setSubjects(data.subjects)
+    setCourses(data.courses)
+    setScheduledSessions(data.scheduledSessions)
+    setProfessorUnavailability(data.professorUnavailability)
   }
 
   useEffect(() => {
@@ -80,30 +163,6 @@ export default function AppEduPlan() {
     }
   }
 
-  const renderPage = () => {
-    if (activeNav === 'planning') return <PlanningPage professorsCount={professors.length} />
-    if (activeNav === 'classes') return <ClassesPage />
-    if (activeNav === 'teachers')
-      return (
-        <TeachersPage
-          professors={professors}
-          newProfessorName={newProfessorName}
-          setNewProfessorName={setNewProfessorName}
-          onCreateProfessor={createProfessor}
-          profError={profError}
-          ping={pingError ? '' : ping}
-          dbOk={dbOk}
-        />
-      )
-
-    const meta: Record<string, { title: string; icon: string }> = {
-      rooms: { title: 'Salles', icon: '◈' },
-      subjects: { title: 'Matières', icon: '◎' },
-      settings: { title: 'Paramètres', icon: '⊕' },
-    }
-    return <PlaceholderPage {...(meta[activeNav] || { title: 'Page', icon: '◉' })} />
-  }
-
   const topError = [
     pingError ? `API: ${pingError}` : '',
     dbError ? `DB: ${dbError}` : '',
@@ -119,9 +178,49 @@ export default function AppEduPlan() {
       setSidebarOpen={setSidebarOpen}
       quickClass={quickClass}
       setQuickClass={setQuickClass}
+      classes={classes}
       topError={topError || undefined}
     >
-      {renderPage()}
+      <Routes>
+        <Route path="/" element={<Navigate to="/planning" replace />} />
+        <Route
+          path="/planning"
+          element={
+            <PlanningPage
+              professorsCount={professors.length}
+              classes={classes}
+              scheduledSessions={scheduledSessions}
+              selectedClass={quickClass}
+              setSelectedClass={setQuickClass}
+            />
+          }
+        />
+        <Route
+          path="/classes"
+          element={<ClassesPage classes={classes} courses={courses} scheduledSessions={scheduledSessions} />}
+        />
+        <Route
+          path="/teachers"
+          element={
+            <TeachersPage
+              professors={professors}
+              newProfessorName={newProfessorName}
+              setNewProfessorName={setNewProfessorName}
+              onCreateProfessor={createProfessor}
+              profError={profError}
+              ping={pingError ? '' : ping}
+              dbOk={dbOk}
+            />
+          }
+        />
+        <Route path="/rooms" element={<RoomsPage rooms={rooms} scheduledSessions={scheduledSessions} />} />
+        <Route
+          path="/subjects"
+          element={<SubjectsPage subjects={subjects} courses={courses} scheduledSessions={scheduledSessions} />}
+        />
+        <Route path="/settings" element={<SettingsPage unavailability={professorUnavailability} />} />
+        <Route path="*" element={<Navigate to="/planning" replace />} />
+      </Routes>
     </EduPlanShell>
   )
 }

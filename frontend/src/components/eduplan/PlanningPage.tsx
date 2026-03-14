@@ -1,11 +1,28 @@
 import { useState } from 'react'
-import { DAYS, HOURS, INITIAL_CLASSES, INITIAL_SCHEDULE, SUBJECT_COLORS, WEEKS } from './data'
+import { DAYS, HOURS, SUBJECT_COLORS, WEEKS } from './data'
 import { S } from './styles'
+import type { DbClass, DbScheduledSession } from './types'
 
-export function PlanningPage({ professorsCount }: { professorsCount: number }) {
-  const [selectedClass, setSelectedClass] = useState('6ème A')
+const START_MINUTE = 8 * 60
+const PX_PER_HOUR = 64
+
+export function PlanningPage({
+  professorsCount,
+  classes,
+  scheduledSessions,
+  selectedClass,
+  setSelectedClass,
+}: {
+  professorsCount: number
+  classes: DbClass[]
+  scheduledSessions: DbScheduledSession[]
+  selectedClass: string
+  setSelectedClass: (v: string) => void
+}) {
   const [selectedWeek, setSelectedWeek] = useState(0)
   const [hoveredBlock, setHoveredBlock] = useState<number | null>(null)
+
+  const classSessions = scheduledSessions.filter((s) => s.course.schoolClass.name === selectedClass)
 
   return (
     <div style={S.pageWrap}>
@@ -32,10 +49,8 @@ export function PlanningPage({ professorsCount }: { professorsCount: number }) {
             </button>
           </div>
           <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} style={S.classSelect}>
-            {INITIAL_CLASSES.map((c) => (
-              <option key={c.id}>
-                {c.level} {c.section}
-              </option>
+            {classes.map((c) => (
+              <option key={c.id}>{c.name}</option>
             ))}
           </select>
           <button style={S.addBtn}>＋ Ajouter</button>
@@ -83,30 +98,40 @@ export function PlanningPage({ professorsCount }: { professorsCount: number }) {
               {HOURS.map((_, i) => (
                 <div key={i} style={S.hourLine} />
               ))}
-              {INITIAL_SCHEDULE.filter((c) => c.day === dayIdx).map((cls) => (
-                <div
-                  key={cls.id}
-                  className="class-block"
-                  style={{
-                    ...S.classBlock,
-                    top: cls.start * 64 + 4,
-                    height: cls.duration * 64 - 8,
-                    backgroundColor: SUBJECT_COLORS[cls.subject] || '#1a3a5c',
-                    opacity: hoveredBlock && hoveredBlock !== cls.id ? 0.55 : 1,
-                  }}
-                  onMouseEnter={() => setHoveredBlock(cls.id)}
-                  onMouseLeave={() => setHoveredBlock(null)}
-                >
-                  <div style={S.classSubject}>{cls.subject}</div>
-                  {cls.duration >= 2 ? (
-                    <>
-                      <div style={S.classTeacher}>{cls.teacher}</div>
-                      <div style={S.classRoom}>{cls.room}</div>
-                    </>
-                  ) : null}
-                  <div style={S.classDuration}>{cls.duration}h</div>
-                </div>
-              ))}
+              {classSessions
+                .filter((ses) => (ses.dayOfWeek ?? 1) - 1 === dayIdx)
+                .map((ses, idx) => {
+                  const subject = ses.course.subject.name
+                  const teacher = ses.course.professor.name
+                  const room = ses.room.name
+                  const topHours = (ses.startMinute - START_MINUTE) / 60
+                  const durHours = (ses.endMinute - ses.startMinute) / 60
+                  const localId = idx + 1
+                  return (
+                    <div
+                      key={ses.id}
+                      className="class-block"
+                      style={{
+                        ...S.classBlock,
+                        top: topHours * PX_PER_HOUR + 4,
+                        height: durHours * PX_PER_HOUR - 8,
+                        backgroundColor: SUBJECT_COLORS[subject] || '#1a3a5c',
+                        opacity: hoveredBlock && hoveredBlock !== localId ? 0.55 : 1,
+                      }}
+                      onMouseEnter={() => setHoveredBlock(localId)}
+                      onMouseLeave={() => setHoveredBlock(null)}
+                    >
+                      <div style={S.classSubject}>{subject}</div>
+                      {durHours >= 2 ? (
+                        <>
+                          <div style={S.classTeacher}>{teacher}</div>
+                          <div style={S.classRoom}>{room}</div>
+                        </>
+                      ) : null}
+                      <div style={S.classDuration}>{durHours}h</div>
+                    </div>
+                  )
+                })}
             </div>
           ))}
         </div>

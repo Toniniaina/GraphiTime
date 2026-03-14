@@ -1,52 +1,47 @@
-import type { DbClass, DbCourse, DbScheduledSession } from './types'
+import type { DbCourse, DbScheduledSession, DbSubject } from './types'
 import { S } from './styles'
-export function ClassesPage({
-  classes,
+
+export function SubjectsPage({
+  subjects,
   courses,
   scheduledSessions,
 }: {
-  classes: DbClass[]
+  subjects: DbSubject[]
   courses: DbCourse[]
   scheduledSessions: DbScheduledSession[]
 }) {
-  const sessionsByClass = new Map<string, number>()
+  const sessionsBySubject = new Map<string, number>()
   for (const ses of scheduledSessions) {
-    const id = ses.course.schoolClass.id
-    sessionsByClass.set(id, (sessionsByClass.get(id) ?? 0) + 1)
+    const id = ses.course.subject.id
+    sessionsBySubject.set(id, (sessionsBySubject.get(id) ?? 0) + 1)
   }
 
-  const coursesByClass = new Map<string, number>()
+  const coursesBySubject = new Map<string, number>()
   for (const c of courses) {
-    const id = c.schoolClass.id
-    coursesByClass.set(id, (coursesByClass.get(id) ?? 0) + 1)
+    coursesBySubject.set(c.subject.id, (coursesBySubject.get(c.subject.id) ?? 0) + 1)
   }
 
   return (
     <div style={S.pageWrap}>
       <header style={S.topBar}>
         <div>
-          <div style={S.pageTitle}>Gestion des Classes</div>
+          <div style={S.pageTitle}>Gestion des Matières</div>
           <div style={S.breadcrumb}>
             <span>Accueil</span>
             <span style={S.breadSep}>›</span>
-            <span style={{ color: '#c8922a' }}>Classes</span>
+            <span style={{ color: '#c8922a' }}>Matières</span>
           </div>
         </div>
       </header>
 
       <div style={S.statsRow}>
         {[
-          {
-            label: 'Total classes',
-            value: classes.length,
-            sub: 'enregistrées',
-            icon: '⊞',
-          },
+          { label: 'Total matières', value: subjects.length, sub: 'enregistrées', icon: '◎' },
           { label: 'Cours', value: courses.length, sub: 'associations', icon: '◈' },
           { label: 'Séances', value: scheduledSessions.length, sub: 'planifiées', icon: '◷' },
           {
-            label: 'Classes actives',
-            value: classes.filter((c) => (sessionsByClass.get(c.id) ?? 0) > 0).length,
+            label: 'Matières actives',
+            value: subjects.filter((s) => (sessionsBySubject.get(s.id) ?? 0) > 0).length,
             sub: 'avec séances',
             icon: '◉',
           },
@@ -91,13 +86,13 @@ export function ClassesPage({
             <div>Séances</div>
           </div>
 
-          {classes.length ? (
-            classes.map((c) => {
-              const cCount = coursesByClass.get(c.id) ?? 0
-              const sCount = sessionsByClass.get(c.id) ?? 0
+          {subjects.length ? (
+            subjects.map((s) => {
+              const cCount = coursesBySubject.get(s.id) ?? 0
+              const sesCount = sessionsBySubject.get(s.id) ?? 0
               return (
                 <div
-                  key={c.id}
+                  key={s.id}
                   style={{
                     display: 'grid',
                     gridTemplateColumns: '220px 1fr 140px 140px',
@@ -108,17 +103,17 @@ export function ClassesPage({
                     color: '#0d1f35',
                   }}
                 >
-                  <div style={{ fontFamily: 'monospace', color: 'rgba(13,31,53,0.7)' }}>{c.id}</div>
-                  <div style={{ fontWeight: 800 }}>{c.name}</div>
+                  <div style={{ fontFamily: 'monospace', color: 'rgba(13,31,53,0.7)' }}>{s.id}</div>
+                  <div style={{ fontWeight: 800 }}>{s.name}</div>
                   <div>{cCount || '—'}</div>
-                  <div style={{ color: sCount ? '#2d6a4f' : 'rgba(13,31,53,0.45)', fontWeight: 800 }}>
-                    {sCount ? sCount : '—'}
+                  <div style={{ color: sesCount ? '#2d6a4f' : 'rgba(13,31,53,0.45)', fontWeight: 800 }}>
+                    {sesCount ? sesCount : '—'}
                   </div>
                 </div>
               )
             })
           ) : (
-            <div style={{ padding: 24, color: 'rgba(13,31,53,0.45)', fontSize: 13 }}>Aucune classe.</div>
+            <div style={{ padding: 24, color: 'rgba(13,31,53,0.45)', fontSize: 13 }}>Aucune matière.</div>
           )}
         </div>
       </div>

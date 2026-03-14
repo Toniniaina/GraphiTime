@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
-import { INITIAL_CLASSES, NAV_ITEMS } from './data'
+import { NAV_ITEMS } from './data'
 import { S, css } from './styles'
+import type { DbClass } from './types'
 
 export type EduPlanNavKey = 'planning' | 'classes' | 'teachers' | 'rooms' | 'subjects' | 'settings'
 
@@ -11,6 +12,7 @@ export function EduPlanShell({
   setSidebarOpen,
   quickClass,
   setQuickClass,
+  classes,
   topError,
   children,
 }: {
@@ -20,6 +22,7 @@ export function EduPlanShell({
   setSidebarOpen: (open: boolean) => void
   quickClass: string
   setQuickClass: (value: string) => void
+  classes: DbClass[]
   topError?: string
   children: ReactNode
 }) {
@@ -73,8 +76,8 @@ export function EduPlanShell({
             <div style={S.divider} />
             <div style={S.navSection}>
               <div style={S.navLabel}>CLASSES RAPIDES</div>
-              {INITIAL_CLASSES.slice(0, 5).map((cls) => {
-                const name = `${cls.level} ${cls.section}`
+              {classes.slice(0, 5).map((cls) => {
+                const name = cls.name
                 return (
                   <button
                     key={cls.id}

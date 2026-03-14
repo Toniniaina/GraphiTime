@@ -1,53 +1,50 @@
-import type { DbClass, DbCourse, DbScheduledSession } from './types'
+import type { DbRoom, DbScheduledSession } from './types'
 import { S } from './styles'
-export function ClassesPage({
-  classes,
-  courses,
+
+export function RoomsPage({
+  rooms,
   scheduledSessions,
 }: {
-  classes: DbClass[]
-  courses: DbCourse[]
+  rooms: DbRoom[]
   scheduledSessions: DbScheduledSession[]
 }) {
-  const sessionsByClass = new Map<string, number>()
+  const usageByRoom = new Map<string, number>()
   for (const ses of scheduledSessions) {
-    const id = ses.course.schoolClass.id
-    sessionsByClass.set(id, (sessionsByClass.get(id) ?? 0) + 1)
-  }
-
-  const coursesByClass = new Map<string, number>()
-  for (const c of courses) {
-    const id = c.schoolClass.id
-    coursesByClass.set(id, (coursesByClass.get(id) ?? 0) + 1)
+    usageByRoom.set(ses.room.id, (usageByRoom.get(ses.room.id) ?? 0) + 1)
   }
 
   return (
     <div style={S.pageWrap}>
       <header style={S.topBar}>
         <div>
-          <div style={S.pageTitle}>Gestion des Classes</div>
+          <div style={S.pageTitle}>Gestion des Salles</div>
           <div style={S.breadcrumb}>
             <span>Accueil</span>
             <span style={S.breadSep}>›</span>
-            <span style={{ color: '#c8922a' }}>Classes</span>
+            <span style={{ color: '#c8922a' }}>Salles</span>
           </div>
         </div>
       </header>
 
       <div style={S.statsRow}>
         {[
+          { label: 'Total salles', value: rooms.length, sub: 'enregistrées', icon: '◈' },
           {
-            label: 'Total classes',
-            value: classes.length,
-            sub: 'enregistrées',
+            label: 'Capacité totale',
+            value: rooms.reduce((a, r) => a + (r.capacity ?? 0), 0),
+            sub: 'places',
             icon: '⊞',
           },
-          { label: 'Cours', value: courses.length, sub: 'associations', icon: '◈' },
-          { label: 'Séances', value: scheduledSessions.length, sub: 'planifiées', icon: '◷' },
           {
-            label: 'Classes actives',
-            value: classes.filter((c) => (sessionsByClass.get(c.id) ?? 0) > 0).length,
-            sub: 'avec séances',
+            label: 'Séances planifiées',
+            value: scheduledSessions.length,
+            sub: 'au total',
+            icon: '◷',
+          },
+          {
+            label: 'Salles utilisées',
+            value: rooms.filter((r) => (usageByRoom.get(r.id) ?? 0) > 0).length,
+            sub: 'au moins 1 séance',
             icon: '◉',
           },
         ].map((stat, i) => (
@@ -75,7 +72,7 @@ export function ClassesPage({
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '220px 1fr 140px 140px',
+              gridTemplateColumns: '220px 1fr 140px 120px',
               gap: 12,
               padding: '14px 16px',
               borderBottom: '1px solid rgba(13,31,53,0.08)',
@@ -87,20 +84,19 @@ export function ClassesPage({
           >
             <div>ID</div>
             <div>Nom</div>
-            <div>Cours</div>
-            <div>Séances</div>
+            <div>Capacité</div>
+            <div>Usage</div>
           </div>
 
-          {classes.length ? (
-            classes.map((c) => {
-              const cCount = coursesByClass.get(c.id) ?? 0
-              const sCount = sessionsByClass.get(c.id) ?? 0
+          {rooms.length ? (
+            rooms.map((r) => {
+              const used = usageByRoom.get(r.id) ?? 0
               return (
                 <div
-                  key={c.id}
+                  key={r.id}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '220px 1fr 140px 140px',
+                    gridTemplateColumns: '220px 1fr 140px 120px',
                     gap: 12,
                     padding: '14px 16px',
                     borderBottom: '1px solid rgba(13,31,53,0.06)',
@@ -108,17 +104,17 @@ export function ClassesPage({
                     color: '#0d1f35',
                   }}
                 >
-                  <div style={{ fontFamily: 'monospace', color: 'rgba(13,31,53,0.7)' }}>{c.id}</div>
-                  <div style={{ fontWeight: 800 }}>{c.name}</div>
-                  <div>{cCount || '—'}</div>
-                  <div style={{ color: sCount ? '#2d6a4f' : 'rgba(13,31,53,0.45)', fontWeight: 800 }}>
-                    {sCount ? sCount : '—'}
+                  <div style={{ fontFamily: 'monospace', color: 'rgba(13,31,53,0.7)' }}>{r.id}</div>
+                  <div style={{ fontWeight: 800 }}>{r.name}</div>
+                  <div>{r.capacity}</div>
+                  <div style={{ color: used ? '#2d6a4f' : 'rgba(13,31,53,0.45)', fontWeight: 800 }}>
+                    {used ? `${used} séance(s)` : '—'}
                   </div>
                 </div>
               )
             })
           ) : (
-            <div style={{ padding: 24, color: 'rgba(13,31,53,0.45)', fontSize: 13 }}>Aucune classe.</div>
+            <div style={{ padding: 24, color: 'rgba(13,31,53,0.45)', fontSize: 13 }}>Aucune salle.</div>
           )}
         </div>
       </div>
