@@ -1,21 +1,23 @@
 import { useState } from 'react'
 import { DAYS, HOURS, SUBJECT_COLORS, WEEKS } from './data'
 import { S } from './styles'
-import type { DbClass, DbScheduledSession } from './types'
+import type { DbClass, DbProfessorUnavailability, DbScheduledSession } from './types'
 
-const START_MINUTE = 8 * 60
+const START_MINUTE = 7 * 60
 const PX_PER_HOUR = 64
 
 export function PlanningPage({
   professorsCount,
   classes,
   scheduledSessions,
+  professorUnavailability,
   selectedClass,
   setSelectedClass,
 }: {
   professorsCount: number
   classes: DbClass[]
   scheduledSessions: DbScheduledSession[]
+  professorUnavailability: DbProfessorUnavailability[]
   selectedClass: string
   setSelectedClass: (v: string) => void
 }) {
@@ -23,6 +25,101 @@ export function PlanningPage({
   const [hoveredBlock, setHoveredBlock] = useState<number | null>(null)
 
   const classSessions = scheduledSessions.filter((s) => s.course.schoolClass.name === selectedClass)
+
+  const formatHours = (hours: number) => {
+    const rounded = Math.round(hours * 10) / 10
+    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
+  }
+
+  const totalHoursForSessions = (sessions: DbScheduledSession[]) =>
+    sessions.reduce((acc, s) => acc + (s.endMinute - s.startMinute) / 60, 0)
+
+  const hoursThisClass = totalHoursForSessions(classSessions)
+
+  const hoursByClass = (() => {
+    const m = new Map<string, number>()
+    for (const ses of scheduledSessions) {
+      const cn = ses.course.schoolClass.name
+      m.set(cn, (m.get(cn) ?? 0) + (ses.endMinute - ses.startMinute) / 60)
+    }
+    return m
+  })()
+
+  const avgHours = classes.length
+    ? Array.from(hoursByClass.values()).reduce((a, b) => a + b, 0) / classes.length
+    : 0
+
+  const diff = hoursThisClass - avgHours
+  const diffLabel = `${diff >= 0 ? '+' : ''}${formatHours(diff)}h vs. moyenne`
+
+  const subjectsCount = new Set(classSessions.map((s) => s.course.subject.name)).size
+  const roomsUsedCount = new Set(classSessions.map((s) => s.room.name)).size
+
+  const mergedSessions = (() => {
+    const byDay = new Map<number, DbScheduledSession[]>()
+    for (const ses of classSessions) {
+      const day = ses.dayOfWeek ?? 1
+      const arr = byDay.get(day) ?? []
+      arr.push(ses)
+      byDay.set(day, arr)
+    }
+
+    const out: DbScheduledSession[] = []
+    for (const [day, arr] of byDay.entries()) {
+      const sorted = [...arr].sort((a, b) => a.startMinute - b.startMinute)
+      let cur: DbScheduledSession | null = null
+
+      const sameIdentity = (a: DbScheduledSession, b: DbScheduledSession) =>
+        a.course.subject.name === b.course.subject.name &&
+        a.course.professor.name === b.course.professor.name &&
+        a.room.name === b.room.name
+
+      for (const ses of sorted) {
+        if (!cur) {
+          cur = ses
+          continue
+        }
+
+        if ((cur.dayOfWeek ?? 1) === day && sameIdentity(cur, ses) && cur.endMinute === ses.startMinute) {
+          cur = {
+            ...cur,
+            endMinute: ses.endMinute,
+          }
+          continue
+        }
+
+        out.push(cur)
+        cur = ses
+      }
+
+      if (cur) out.push(cur)
+    }
+
+    return out
+  })()
+
+  const timeToMinute = (t: string) => {
+    const [hh, mm] = t.split(':').map((v) => Number(v))
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return 0
+    return hh * 60 + mm
+  }
+
+  const isProfessorUnavailable = (ses: DbScheduledSession) => {
+    const profId = ses.course.professor.id
+    const day = ses.dayOfWeek
+    const start = ses.startMinute
+    const end = ses.endMinute
+
+    for (const u of professorUnavailability) {
+      if (u.professor.id !== profId) continue
+      if (u.dayOfWeek !== day) continue
+      const uStart = timeToMinute(u.startTime)
+      const uEnd = timeToMinute(u.endTime)
+      const overlaps = start < uEnd && end > uStart
+      if (overlaps) return true
+    }
+    return false
+  }
 
   return (
     <div style={S.pageWrap}>
@@ -59,10 +156,10 @@ export function PlanningPage({
 
       <div style={S.statsRow}>
         {[
-          { label: 'Heures / semaine', value: '28h', sub: '+2h vs. moyenne', icon: '◷' },
-          { label: 'Matières', value: '9', sub: 'dont 2 labs', icon: '◈' },
+          { label: 'Heures / semaine', value: `${formatHours(hoursThisClass)}h`, sub: diffLabel, icon: '◷' },
+          { label: 'Matières', value: String(subjectsCount), sub: 'Sur la classe sélectionnée', icon: '◈' },
           { label: 'Professeurs', value: String(professorsCount), sub: 'Tous disponibles', icon: '⊛' },
-          { label: 'Salles utilisées', value: '7', sub: 'sur 14 au total', icon: '⊞' },
+          { label: 'Salles utilisées', value: String(roomsUsedCount), sub: 'Sur la classe sélectionnée', icon: '⊞' },
         ].map((stat, i) => (
           <div key={i} style={S.statCard} className="stat-card">
             <div style={S.statIcon}>{stat.icon}</div>
@@ -98,12 +195,14 @@ export function PlanningPage({
               {HOURS.map((_, i) => (
                 <div key={i} style={S.hourLine} />
               ))}
-              {classSessions
+              {mergedSessions
                 .filter((ses) => (ses.dayOfWeek ?? 1) - 1 === dayIdx)
                 .map((ses, idx) => {
                   const subject = ses.course.subject.name
                   const teacher = ses.course.professor.name
                   const room = ses.room.name
+                  const unavailable = isProfessorUnavailable(ses)
+                  const availabilityLabel = unavailable ? 'indispo' : 'dispo'
                   const topHours = (ses.startMinute - START_MINUTE) / 60
                   const durHours = (ses.endMinute - ses.startMinute) / 60
                   const localId = idx + 1
@@ -122,12 +221,10 @@ export function PlanningPage({
                       onMouseLeave={() => setHoveredBlock(null)}
                     >
                       <div style={S.classSubject}>{subject}</div>
-                      {durHours >= 2 ? (
-                        <>
-                          <div style={S.classTeacher}>{teacher}</div>
-                          <div style={S.classRoom}>{room}</div>
-                        </>
-                      ) : null}
+                      <div style={S.classTeacher}>
+                        {teacher} ({availabilityLabel})
+                      </div>
+                      <div style={S.classRoom}>{room}</div>
                       <div style={S.classDuration}>{durHours}h</div>
                     </div>
                   )

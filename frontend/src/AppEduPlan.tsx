@@ -190,6 +190,7 @@ export default function AppEduPlan() {
               professorsCount={professors.length}
               classes={classes}
               scheduledSessions={scheduledSessions}
+              professorUnavailability={professorUnavailability}
               selectedClass={quickClass}
               setSelectedClass={setQuickClass}
             />

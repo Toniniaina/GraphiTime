@@ -1,10 +1,10 @@
 import strawberry
-from psycopg_pool import ConnectionPool
 
 from ..repositories.professor_repository import ProfessorRepository
 from ..repositories.school_repository import SchoolRepository
 from ..services.professor_service import ProfessorService
 from ..services.school_service import SchoolService
+from .context import GraphQLContext
 from .types import (
     Course,
     DbStatus,
@@ -24,10 +24,9 @@ class Query:
         return "pong"
 
     @strawberry.field
-    def db_status(self, info: strawberry.Info) -> DbStatus:
+    def db_status(self, info: strawberry.Info[GraphQLContext, None]) -> DbStatus:
         try:
-            pool: ConnectionPool = info.context["db_pool"]  # type: ignore[assignment]
-            with pool.connection() as conn:
+            with info.context.db_pool.connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute("SELECT now(), version()")
                     row = cur.fetchone()
@@ -39,33 +38,28 @@ class Query:
             return DbStatus(ok=False, db_time="", db_version="", error=str(e))
 
     @strawberry.field
-    def professors(self, info: strawberry.Info) -> list[Professor]:
-        pool: ConnectionPool = info.context["db_pool"]  # type: ignore[assignment]
-        svc = ProfessorService(ProfessorRepository(pool))
+    def professors(self, info: strawberry.Info[GraphQLContext, None]) -> list[Professor]:
+        svc = ProfessorService(ProfessorRepository(info.context.db_pool))
         return [Professor(id=i, name=n) for (i, n) in svc.list_professors()]
 
     @strawberry.field
-    def classes(self, info: strawberry.Info) -> list[SchoolClass]:
-        pool: ConnectionPool = info.context["db_pool"]  # type: ignore[assignment]
-        svc = SchoolService(SchoolRepository(pool))
+    def classes(self, info: strawberry.Info[GraphQLContext, None]) -> list[SchoolClass]:
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
         return [SchoolClass(id=i, name=n) for (i, n) in svc.list_classes()]
 
     @strawberry.field
-    def rooms(self, info: strawberry.Info) -> list[Room]:
-        pool: ConnectionPool = info.context["db_pool"]  # type: ignore[assignment]
-        svc = SchoolService(SchoolRepository(pool))
+    def rooms(self, info: strawberry.Info[GraphQLContext, None]) -> list[Room]:
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
         return [Room(id=i, name=n, capacity=cap) for (i, n, cap) in svc.list_rooms()]
 
     @strawberry.field
-    def subjects(self, info: strawberry.Info) -> list[Subject]:
-        pool: ConnectionPool = info.context["db_pool"]  # type: ignore[assignment]
-        svc = SchoolService(SchoolRepository(pool))
+    def subjects(self, info: strawberry.Info[GraphQLContext, None]) -> list[Subject]:
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
         return [Subject(id=i, name=n) for (i, n) in svc.list_subjects()]
 
     @strawberry.field
-    def courses(self, info: strawberry.Info) -> list[Course]:
-        pool: ConnectionPool = info.context["db_pool"]  # type: ignore[assignment]
-        svc = SchoolService(SchoolRepository(pool))
+    def courses(self, info: strawberry.Info[GraphQLContext, None]) -> list[Course]:
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
         out: list[Course] = []
         for (crs_id, req, sub_id, sub_name, cls_id, cls_name, prof_id, prof_name) in svc.list_courses():
             out.append(
@@ -81,10 +75,9 @@ class Query:
 
     @strawberry.field
     def professor_unavailability(
-        self, info: strawberry.Info
+        self, info: strawberry.Info[GraphQLContext, None]
     ) -> list[ProfessorUnavailability]:
-        pool: ConnectionPool = info.context["db_pool"]  # type: ignore[assignment]
-        svc = SchoolService(SchoolRepository(pool))
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
         out: list[ProfessorUnavailability] = []
         for (u_id, prof_id, prof_name, dow, start, end) in svc.list_professor_unavailability():
             out.append(
@@ -99,9 +92,8 @@ class Query:
         return out
 
     @strawberry.field
-    def scheduled_sessions(self, info: strawberry.Info) -> list[ScheduledSession]:
-        pool: ConnectionPool = info.context["db_pool"]  # type: ignore[assignment]
-        svc = SchoolService(SchoolRepository(pool))
+    def scheduled_sessions(self, info: strawberry.Info[GraphQLContext, None]) -> list[ScheduledSession]:
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
         out: list[ScheduledSession] = []
         for (
             ses_id,
