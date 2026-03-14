@@ -8,6 +8,10 @@ function App() {
   const [count, setCount] = useState(0)
   const [ping, setPing] = useState<string>('')
   const [pingError, setPingError] = useState<string>('')
+  const [dbOk, setDbOk] = useState<boolean | null>(null)
+  const [dbTime, setDbTime] = useState<string>('')
+  const [dbVersion, setDbVersion] = useState<string>('')
+  const [dbError, setDbError] = useState<string>('')
 
   useEffect(() => {
     let cancelled = false
@@ -17,7 +21,9 @@ function App() {
         const res = await fetch('/graphql', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ query: 'query { ping }' }),
+          body: JSON.stringify({
+            query: 'query { ping dbStatus { ok dbTime dbVersion error } }',
+          }),
         })
 
         const json = await res.json()
@@ -27,6 +33,10 @@ function App() {
 
         if (!cancelled) {
           setPing(json?.data?.ping ?? '')
+          setDbOk(json?.data?.dbStatus?.ok ?? null)
+          setDbTime(json?.data?.dbStatus?.dbTime ?? '')
+          setDbVersion(json?.data?.dbStatus?.dbVersion ?? '')
+          setDbError(json?.data?.dbStatus?.error ?? '')
         }
       } catch (e) {
         if (!cancelled) {
@@ -69,6 +79,25 @@ function App() {
           {pingError ? (
             <div style={{ color: 'crimson' }}>
               <strong>Error:</strong> {pingError}
+            </div>
+          ) : null}
+
+          <div style={{ marginTop: 8 }}>
+            <strong>PostgreSQL:</strong>{' '}
+            {dbOk === null ? '...' : dbOk ? 'OK' : 'KO'}
+          </div>
+          {dbOk ? (
+            <div>
+              <div>
+                <strong>DB time:</strong> {dbTime}
+              </div>
+              <div>
+                <strong>DB version:</strong> {dbVersion}
+              </div>
+            </div>
+          ) : dbError ? (
+            <div style={{ color: 'crimson' }}>
+              <strong>DB error:</strong> {dbError}
             </div>
           ) : null}
         </div>

@@ -1,3 +1,5 @@
+CREATE DATABASE graphitime;
+\c graphitime;
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 CREATE SEQUENCE IF NOT EXISTS professors_seq;

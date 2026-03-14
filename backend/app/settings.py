@@ -1,20 +1,19 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
 
-load_dotenv()
+_ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
+load_dotenv(dotenv_path=_ENV_PATH)
 
 
 class Settings(BaseModel):
     app_name: str = "GraphiTime"
     debug: bool = True
-    database_url: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql://postgres:postgres@127.0.0.1:5432/graphitime",
-    )
-    cors_origins: str = os.getenv("CORS_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173")
+    database_url: str = os.environ["DATABASE_URL"]
+    cors_origins: str = os.environ["CORS_ORIGINS"]
 
 
 settings = Settings()
