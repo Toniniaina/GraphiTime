@@ -3,7 +3,7 @@ import { NAV_ITEMS } from './data'
 import { S, css } from './styles'
 import type { DbClass } from './types'
 
-export type EduPlanNavKey = 'planning' | 'classes' | 'teachers' | 'rooms' | 'subjects' | 'settings'
+export type EduPlanNavKey = 'planning' | 'algo' | 'classes' | 'teachers' | 'rooms' | 'subjects' | 'settings'
 
 export function EduPlanShell({
   activeNav,
@@ -82,10 +82,10 @@ export function EduPlanShell({
                   <button
                     key={cls.id}
                     onClick={() => {
-                      setQuickClass(name)
+                      setQuickClass(cls.id)
                       setActiveNav('planning')
                     }}
-                    style={{ ...S.classChip, ...(quickClass === name ? S.classChipActive : {}) }}
+                    style={{ ...S.classChip, ...(quickClass === cls.id ? S.classChipActive : {}) }}
                   >
                     <span style={S.classChipDot} />
                     {name}

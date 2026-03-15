@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import './App.css'
 import { EduPlanShell, type EduPlanNavKey } from './components/eduplan/EduPlanShell'
 import { PlanningPage } from './components/eduplan/PlanningPage'
+import { AlgoTestPage } from './components/eduplan/AlgoTestPage'
 import { ClassesPage } from './components/eduplan/ClassesPage'
 import { TeachersPage } from './components/eduplan/TeachersPage'
 import { RoomsPage } from './components/eduplan/RoomsPage'
@@ -23,7 +24,7 @@ export default function AppEduPlan() {
   const navigate = useNavigate()
 
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [quickClass, setQuickClass] = useState('6ème A')
+  const [quickClassId, setQuickClassId] = useState('')
 
   const [ping, setPing] = useState<string>('')
   const [pingError, setPingError] = useState<string>('')
@@ -44,6 +45,7 @@ export default function AppEduPlan() {
   const activeNav: EduPlanNavKey = (() => {
     const p = location.pathname
     if (p.startsWith('/planning')) return 'planning'
+    if (p.startsWith('/algo')) return 'algo'
     if (p.startsWith('/classes')) return 'classes'
     if (p.startsWith('/teachers')) return 'teachers'
     if (p.startsWith('/rooms')) return 'rooms'
@@ -55,6 +57,7 @@ export default function AppEduPlan() {
   const setActiveNav = (key: EduPlanNavKey) => {
     const map: Record<EduPlanNavKey, string> = {
       planning: '/planning',
+      algo: '/algo',
       classes: '/classes',
       teachers: '/teachers',
       rooms: '/rooms',
@@ -145,6 +148,12 @@ export default function AppEduPlan() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!classes.length) return
+    if (quickClassId && classes.some((c) => c.id === quickClassId)) return
+    setQuickClassId(classes[0].id)
+  }, [classes, quickClassId])
+
   async function createProfessor() {
     setProfError('')
     try {
@@ -176,8 +185,8 @@ export default function AppEduPlan() {
       setActiveNav={setActiveNav}
       sidebarOpen={sidebarOpen}
       setSidebarOpen={setSidebarOpen}
-      quickClass={quickClass}
-      setQuickClass={setQuickClass}
+      quickClass={quickClassId}
+      setQuickClass={setQuickClassId}
       classes={classes}
       topError={topError || undefined}
     >
@@ -191,8 +200,22 @@ export default function AppEduPlan() {
               classes={classes}
               scheduledSessions={scheduledSessions}
               professorUnavailability={professorUnavailability}
-              selectedClass={quickClass}
-              setSelectedClass={setQuickClass}
+              selectedClass={quickClassId}
+              setSelectedClass={setQuickClassId}
+            />
+          }
+        />
+        <Route
+          path="/algo"
+          element={
+            <AlgoTestPage
+              professorsCount={professors.length}
+              classes={classes}
+              scheduledSessions={scheduledSessions}
+              professorUnavailability={professorUnavailability}
+              selectedClass={quickClassId}
+              setSelectedClass={setQuickClassId}
+              onApplied={refreshAll}
             />
           }
         />

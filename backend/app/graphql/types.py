@@ -63,6 +63,13 @@ class ScheduledSession:
     room: Room
 
 
+@strawberry.type
+class ApplyScheduleResult:
+    ok: bool
+    count: int
+    error: str | None = None
+
+
 @strawberry.input
 class CreateProfessorInput:
     name: str
