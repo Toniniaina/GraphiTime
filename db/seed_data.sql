@@ -31,7 +31,8 @@ INSERT INTO professors (name) VALUES
 
 -- Classes
 INSERT INTO classes (name) VALUES
-  ('6ème A');
+  ('6ème A'),
+  ('6ème B');
 
 -- Subjects
 INSERT INTO subjects (name) VALUES
@@ -48,16 +49,25 @@ INSERT INTO subjects (name) VALUES
 -- Rooms
 INSERT INTO rooms (name, capacity) VALUES
   ('Gymnase A', 60),
-  ('Salle 01', 32);
+  ('Salle 01', 32),
+  ('Salle 02', 32);
 
--- Courses
--- EPS et Étude : required_hours = heures réellement planifiées dans l'EDT
--- 7 matières × 5h = 35h | EPS = 2h | Étude = 3h | Total = 40h
--- Contrainte respectée : min 2h / max 4h par matière (hors Étude = auto-étude)
+-- Home room per class
+UPDATE classes
+SET home_room_id = r.id
+FROM rooms r
+WHERE classes.name = '6ème A' AND r.name = 'Salle 01';
+
+UPDATE classes
+SET home_room_id = r.id
+FROM rooms r
+WHERE classes.name = '6ème B' AND r.name = 'Salle 02';
+
+-- Courses 6ème A
 INSERT INTO courses (subject_id, class_id, professor_id, required_hours_per_week)
 SELECT s.id, c.id, p.id, x.rh
 FROM (VALUES
-  ('Anglais', '6ème A', 'M. Andry', 5.0),
+  ('Anglais', '6ème A', 'M. Andry', 5.0),   
   ('EPS', '6ème A', 'M. Zo', 2.0),
   ('Français', '6ème A', 'Mme. Rabe', 5.0),
   ('Histoire-Géo', '6ème A', 'M. Tiana', 5.0),
@@ -66,30 +76,54 @@ FROM (VALUES
   ('SVT', '6ème A', 'Mme. Lalao', 5.0),
   ('Technologie', '6ème A', 'Mme. Vola', 5.0)
 ) AS x(sn, cn, pn, rh)
-JOIN subjects   s ON s.name = x.sn
-JOIN classes    c ON c.name = x.cn
-JOIN professors p ON p.name = x.pn;
+JOIN subjects s ON s.name=x.sn
+JOIN classes c ON c.name=x.cn
+JOIN professors p ON p.name=x.pn;
 
--- Prof fictif pour les heures d'Étude (auto-étude surveillée)
+-- Courses 6ème B (mêmes profs et matières)
+INSERT INTO courses (subject_id, class_id, professor_id, required_hours_per_week)
+SELECT s.id, c.id, p.id, x.rh
+FROM (VALUES
+  ('Anglais', '6ème B', 'M. Andry', 5.0),
+  ('EPS', '6ème B', 'M. Zo', 2.0),
+  ('Français', '6ème B', 'Mme. Rabe', 5.0),
+  ('Histoire-Géo', '6ème B', 'M. Tiana', 5.0),
+  ('Mathématiques', '6ème B', 'M. Rakoto', 5.0),
+  ('Physique-Chimie', '6ème B', 'M. Feno', 5.0),
+  ('SVT', '6ème B', 'Mme. Lalao', 5.0),
+  ('Technologie', '6ème B', 'Mme. Vola', 5.0)
+) AS x(sn, cn, pn, rh)
+JOIN subjects s ON s.name=x.sn
+JOIN classes c ON c.name=x.cn
+JOIN professors p ON p.name=x.pn;
+
+-- Prof fictif pour Étude
 INSERT INTO professors (name) VALUES ('Surveillant');
 
--- Course pour Étude
-INSERT INTO courses (subject_id, class_id, professor_id, required_hours_per_week)
-SELECT s.id, c.id, p.id, 3.0
-FROM subjects s, classes c, professors p
-WHERE s.name = 'Étude' AND c.name = '6ème A' AND p.name = 'Surveillant';
+-- Étude 6ème A
+INSERT INTO courses (subject_id,class_id,professor_id,required_hours_per_week)
+SELECT s.id,c.id,p.id,3.0
+FROM subjects s,classes c,professors p
+WHERE s.name='Étude' AND c.name='6ème A' AND p.name='Surveillant';
+
+-- Étude 6ème B
+INSERT INTO courses (subject_id,class_id,professor_id,required_hours_per_week)
+SELECT s.id,c.id,p.id,3.0
+FROM subjects s,classes c,professors p
+WHERE s.name='Étude' AND c.name='6ème B' AND p.name='Surveillant';
 
 -- Professor unavailability
-INSERT INTO professor_unavailability (professor_id, day_of_week, start_time, end_time)
-SELECT p.id, x.dow, x.st, x.et
+INSERT INTO professor_unavailability (professor_id,day_of_week,start_time,end_time)
+SELECT p.id,x.dow,x.st,x.et
 FROM (VALUES
-  ('M. Rakoto', 3::smallint, '09:00'::time, '10:00'::time),
-  ('Mme. Rabe', 2::smallint, '08:00'::time, '09:00'::time),
-  ('M. Andry', 5::smallint, '07:00'::time, '08:00'::time),
-  ('M. Tiana', 4::smallint, '14:00'::time, '15:00'::time),
-  ('Mme. Lalao', 1::smallint, '10:00'::time, '11:00'::time)
-) AS x(pn, dow, st, et)
-JOIN professors p ON p.name = x.pn;
+  ('M. Rakoto',3::smallint,'09:00'::time,'10:00'::time),
+  ('Mme. Rabe',2::smallint,'08:00'::time,'09:00'::time),
+  ('M. Andry',5::smallint,'07:00'::time,'08:00'::time),
+  ('M. Tiana',4::smallint,'14:00'::time,'15:00'::time),
+  ('Mme. Lalao',1::smallint,'10:00'::time,'11:00'::time)
+) AS x(pn,dow,st,et)
+JOIN professors p ON p.name=x.pn;
+
 
 -- Scheduled sessions
 -- Structure :

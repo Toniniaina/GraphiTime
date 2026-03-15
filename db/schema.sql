@@ -31,6 +31,9 @@ CREATE TABLE rooms (
     capacity INTEGER NOT NULL DEFAULT 0 CHECK (capacity >= 0)
 );
 
+ALTER TABLE classes
+    ADD COLUMN home_room_id VARCHAR(16) REFERENCES rooms(id) ON DELETE RESTRICT;
+
 CREATE TABLE courses (
     id VARCHAR(16) PRIMARY KEY DEFAULT ('CRS' || lpad(nextval('courses_seq')::text, 5, '0')),
     subject_id VARCHAR(16) NOT NULL REFERENCES subjects(id) ON DELETE RESTRICT,

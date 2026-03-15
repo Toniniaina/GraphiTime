@@ -3,6 +3,7 @@ import type { ScheduleItem, SchoolClass } from './types'
 export const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
 
 export const HOURS = [
+  '06:00',
   '07:00',
   '08:00',
   '09:00',

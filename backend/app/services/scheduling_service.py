@@ -68,7 +68,7 @@ class SchedulingService:
     This is a greedy coloring-like assignment over fixed time slots.
     """
 
-    START_MINUTE = 7 * 60
+    START_MINUTE = 6 * 60
     MORNING_SLOTS = [420, 480, 540, 600, 660]  # start minutes
     AFTERNOON_SLOTS = [840, 900, 960]
 
@@ -121,6 +121,26 @@ class SchedulingService:
                 rows = cur.fetchall() or []
         return [RoomRow(id=str(i), name=str(n), capacity=int(c)) for (i, n, c) in rows]
 
+    def _list_class_home_rooms(self) -> dict[str, str]:
+        """Return mapping class_id -> room_id for the class main room."""
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT c.id, c.home_room_id
+                    FROM classes c
+                    ORDER BY c.name
+                    """
+                )
+                rows = cur.fetchall() or []
+
+        out: dict[str, str] = {}
+        for cid, rid in rows:
+            if rid is None:
+                continue
+            out[str(cid)] = str(rid)
+        return out
+
     def _list_unavailability(self) -> list[UnavailabilityRow]:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
@@ -165,6 +185,23 @@ class SchedulingService:
                 return r
         return rooms[0]
 
+    def _pick_room_for_class(
+        self,
+        rooms: list[RoomRow],
+        subject_name: str,
+        class_id: str,
+        class_home_room_id: dict[str, str],
+    ) -> RoomRow:
+        subj = subject_name.lower()
+        if "eps" in subj or "sport" in subj or "gym" in subj:
+            return self._pick_room(rooms, subject_name)
+        room_id = class_home_room_id.get(class_id)
+        if room_id:
+            for r in rooms:
+                if r.id == room_id:
+                    return r
+        return self._pick_room(rooms, subject_name)
+
     def _is_prof_available(self, unv: list[UnavailabilityRow], prof_id: str, dow: int, start: int, end: int) -> bool:
         for u in unv:
             if u.professor_id != prof_id:
@@ -184,9 +221,31 @@ class SchedulingService:
         if not rooms:
             raise RuntimeError("No rooms found")
 
+        class_home_room_id = self._list_class_home_rooms()
+
+        # Quick feasibility check (approx): total teaching hours per professor must fit in the week's capacity.
+        # Weekly capacity per professor (by our allowed windows): 5 days * (6h morning + 4h afternoon) = 50h.
+        prof_load: dict[str, float] = {}
+        prof_name: dict[str, str] = {}
+        for c in courses:
+            prof_load[c.professor_id] = prof_load.get(c.professor_id, 0.0) + float(c.required_hours_per_week)
+            prof_name[c.professor_id] = c.professor_name
+        overload = [(pid, h) for pid, h in prof_load.items() if h > 50.0 + 1e-9]
+        if overload:
+            details = ", ".join(f"{prof_name.get(pid, pid)}={h}h" for pid, h in sorted(overload, key=lambda x: -x[1]))
+            raise RuntimeError(f"CP-SAT: impossible (charge prof > 50h/semaine): {details}")
+
         courses_by_class: dict[str, list[CourseRow]] = {}
         for c in courses:
             courses_by_class.setdefault(c.class_id, []).append(c)
+
+        # Validate home room presence for all classes being scheduled.
+        missing_home = [cid for cid in courses_by_class.keys() if cid not in class_home_room_id]
+        if missing_home:
+            names = ", ".join(sorted({c.class_name for c in courses if c.class_id in missing_home}))
+            raise RuntimeError(
+                f"CP-SAT: home_room_id manquant pour la/les classe(s): {names}. Renseigne classes.home_room_id (ex: Salle 01, Salle 02)."
+            )
 
         def _decompose_required_hours(course: CourseRow) -> list[int]:
             """Decompose required hours into session blocks.
@@ -246,22 +305,30 @@ class SchedulingService:
 
         # Fixed slots per day per class.
         # We offer all possible 1h/2h/3h slots inside allowed time windows:
-        #   - morning: 07:00-12:00 (420-720)
-        #   - afternoon: 14:00-17:00 (840-1020)
+        #   - morning: 06:00-12:00 (360-720)
+        #   - afternoon: 14:00-18:00 (840-1080)
         # CP-SAT will decide which slots are used.
         slots: list[_Slot] = []
         slot_id = 0
         for class_id in courses_by_class.keys():
             for dow in range(1, 6):
-                windows = [(420, 720), (840, 1020)]
+                windows = [(360, 720), (840, 1080)]
                 for win_start, win_end in windows:
                     for dur_h in (1, 2, 3):
                         dur_min = dur_h * 60
                         start = win_start
                         while start + dur_min <= win_end:
                             end = start + dur_min
-                            # base cost packs earlier slots first (lower is better)
-                            cost = (dow - 1) * 100000 + start
+                            # Base cost packs earlier slots first (lower is better), but we strongly
+                            # penalize using tolerance hours outside the normal day:
+                            #   - normal: 07:00-12:00 and 14:00-17:00
+                            #   - tolerance: 06:00-07:00 and 17:00-18:00
+                            penalty = 0
+                            if start < 420:  # before 07:00
+                                penalty += 1_000_000
+                            if end > 1020:  # after 17:00
+                                penalty += 1_000_000
+                            cost = penalty + (dow - 1) * 100000 + start
                             slots.append(
                                 _Slot(
                                     id=slot_id,
@@ -331,6 +398,20 @@ class SchedulingService:
                     if _overlaps(s1.start_minute, s1.end_minute, s2.start_minute, s2.end_minute):
                         model.Add(v1 + v2 <= 1)
 
+        # Max 4h per subject per day (per class), excluding Étude.
+        by_class_day_subject: dict[tuple[str, int, str], list[tuple[int, cp_model.IntVar]]] = {}
+        for (tid, sid), var in x.items():
+            t = tasks[tid]
+            s = slots[sid]
+            subj_name = t.course.subject_name.lower()
+            if subj_name in {"étude", "etude"}:
+                continue
+            key = (t.class_id, s.day_of_week, t.course.subject_id)
+            by_class_day_subject.setdefault(key, []).append((t.duration_h, var))
+
+        for (_class_id, _dow, _subj_id), items in by_class_day_subject.items():
+            model.Add(sum(dur * var for (dur, var) in items) <= 4)
+
         # Professor conflict constraints across classes.
         # For each professor and each time-window, only one assigned.
         by_prof_day: dict[tuple[str, int], list[tuple[_Slot, cp_model.IntVar]]] = {}
@@ -357,12 +438,14 @@ class SchedulingService:
         model.Minimize(sum(objective_terms))
 
         solver = cp_model.CpSolver()
-        solver.parameters.max_time_in_seconds = 5.0
+        solver.parameters.max_time_in_seconds = 20.0
         solver.parameters.num_search_workers = 8
 
         status = solver.Solve(model)
+        if status == cp_model.UNKNOWN:
+            raise RuntimeError("CP-SAT: timeout (aucune solution trouvée dans le temps imparti)")
         if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            raise RuntimeError("CP-SAT: no feasible schedule found")
+            raise RuntimeError("CP-SAT: no feasible schedule found (contraintes incompatibles)")
 
         now = datetime.now(tz=timezone.utc).isoformat()
         preview: list[GeneratedSessionRow] = []
@@ -379,7 +462,7 @@ class SchedulingService:
         chosen.sort(key=lambda it: (it[0].class_id, it[0].day_of_week, it[0].start_minute))
 
         for s, t in chosen:
-            room = self._pick_room(rooms, t.course.subject_name)
+            room = self._pick_room_for_class(rooms, t.course.subject_name, t.class_id, class_home_room_id)
             preview.append(
                 GeneratedSessionRow(
                     id=f"PRE{sid_out:05d}",

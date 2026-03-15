@@ -3,7 +3,7 @@ import { DAYS, HOURS, SUBJECT_COLORS, WEEKS } from './data'
 import { S } from './styles'
 import type { DbClass, DbProfessorUnavailability, DbScheduledSession } from './types'
 
-const START_MINUTE = 7 * 60
+const START_MINUTE = 6 * 60
 const PX_PER_HOUR = 64
 
 export function PlanningPage({
@@ -13,6 +13,7 @@ export function PlanningPage({
   professorUnavailability,
   selectedClass,
   setSelectedClass,
+  onAddClick,
 }: {
   professorsCount: number
   classes: DbClass[]
@@ -20,6 +21,7 @@ export function PlanningPage({
   professorUnavailability: DbProfessorUnavailability[]
   selectedClass: string
   setSelectedClass: (v: string) => void
+  onAddClick?: () => void
 }) {
   const [selectedWeek, setSelectedWeek] = useState(0)
   const [hoveredBlock, setHoveredBlock] = useState<number | null>(null)
@@ -158,10 +160,9 @@ export function PlanningPage({
               </option>
             ))}
           </select>
-          <div style={{ fontSize: 12, color: 'rgba(13,31,53,0.35)', marginLeft: 8 }}>
-            Debug: selectedClass={selectedClass || '(vide)'} · sessions={scheduledSessions.length} · classSessions={classSessions.length} · merged={mergedSessions.length}
-          </div>
-          <button style={S.addBtn}>＋ Ajouter</button>
+          <button style={S.addBtn} onClick={onAddClick}>
+            {onAddClick ? 'Générer' : '＋ Ajouter'}
+          </button>
         </div>
       </header>
 

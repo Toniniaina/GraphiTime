@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { PlanningPage } from './PlanningPage'
 import type { DbClass, DbProfessorUnavailability, DbScheduledSession } from './types'
 
@@ -18,20 +18,8 @@ export function AlgoTestPage({
   onApplied: () => Promise<void>
 }) {
   const [previewSessions, setPreviewSessions] = useState<DbScheduledSession[] | null>(null)
-  const [previewRuns, setPreviewRuns] = useState(0)
   const [error, setError] = useState<string>('')
   const [busy, setBusy] = useState<'preview' | 'apply' | null>(null)
-  const [chosenClass, setChosenClass] = useState<string>('')
-
-  useEffect(() => {
-    if (!classes.length) return
-    if (chosenClass && classes.some((c) => c.id === chosenClass)) return
-    if (selectedClass && classes.some((c) => c.id === selectedClass)) {
-      setChosenClass(selectedClass)
-      return
-    }
-    setChosenClass(classes[0].id)
-  }, [classes, selectedClass, chosenClass])
 
   async function graphql<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
     const res = await fetch('/graphql', {
@@ -48,13 +36,9 @@ export function AlgoTestPage({
   }
 
   async function runPreview() {
-    setPreviewRuns((v) => v + 1)
     setBusy('preview')
     setError('')
     try {
-      if (chosenClass && chosenClass !== selectedClass) {
-        setSelectedClass(chosenClass)
-      }
       const data = await graphql<{ generateSchedulePreview: DbScheduledSession[] }>(
         'query { generateSchedulePreview { id dayOfWeek startMinute endMinute createdAt room { id name capacity } course { id requiredHoursPerWeek subject { id name } schoolClass { id name } professor { id name } } } }',
       )
@@ -97,44 +81,6 @@ export function AlgoTestPage({
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '0 32px 12px', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <select
-          value={chosenClass}
-          onChange={(e) => setChosenClass(e.target.value)}
-          disabled={busy !== null}
-          style={{
-            height: 36,
-            borderRadius: 10,
-            border: '1px solid rgba(13,31,53,0.14)',
-            padding: '0 12px',
-            fontSize: 13,
-            fontWeight: 600,
-            color: '#0d1f35',
-            background: 'white',
-          }}
-        >
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={runPreview}
-          disabled={busy !== null}
-          style={{
-            background: busy === 'preview' ? 'rgba(13,31,53,0.7)' : '#0d1f35',
-            color: '#c8922a',
-            border: 'none',
-            borderRadius: 10,
-            padding: '9px 18px',
-            fontSize: 13,
-            fontWeight: '600',
-            cursor: busy !== null ? 'not-allowed' : 'pointer',
-            letterSpacing: '0.02em',
-          }}
-        >
-          Tester (Aperçu algo)
-        </button>
         <button
           onClick={applyToDb}
           disabled={busy !== null}
@@ -156,9 +102,6 @@ export function AlgoTestPage({
             Aperçu actif (non enregistré) — {previewSessions.length} séance(s)
           </div>
         ) : null}
-        <div style={{ alignSelf: 'center', fontSize: 12, color: 'rgba(13,31,53,0.35)' }}>
-          Debug: previews lancés={previewRuns} · previewSessions={previewSessions === null ? 'null' : String(previewSessions.length)}
-        </div>
       </div>
 
       {error ? (
@@ -172,6 +115,7 @@ export function AlgoTestPage({
         professorUnavailability={professorUnavailability}
         selectedClass={selectedClass}
         setSelectedClass={setSelectedClass}
+        onAddClick={busy !== null ? undefined : runPreview}
       />
     </div>
   )
