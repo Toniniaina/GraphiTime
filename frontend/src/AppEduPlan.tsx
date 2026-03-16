@@ -174,7 +174,7 @@ export default function AppEduPlan() {
 
   const topError = [
     pingError ? `API: ${pingError}` : '',
-    dbError ? `DB: ${dbError}` : '',
+    dbError ? `Base de données: ${dbError}` : '',
   ]
     .filter(Boolean)
     .join(' · ')
@@ -211,7 +211,6 @@ export default function AppEduPlan() {
             <AlgoTestPage
               professorsCount={professors.length}
               classes={classes}
-              scheduledSessions={scheduledSessions}
               professorUnavailability={professorUnavailability}
               selectedClass={quickClassId}
               setSelectedClass={setQuickClassId}
@@ -228,6 +227,8 @@ export default function AppEduPlan() {
           element={
             <TeachersPage
               professors={professors}
+              scheduledSessions={scheduledSessions}
+              professorUnavailability={professorUnavailability}
               newProfessorName={newProfessorName}
               setNewProfessorName={setNewProfessorName}
               onCreateProfessor={createProfessor}

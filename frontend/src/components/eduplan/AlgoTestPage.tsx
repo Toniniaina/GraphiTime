@@ -62,7 +62,7 @@ export function AlgoTestPage({
     setError('')
     try {
       if (!previewSessions) {
-        throw new Error("Lance d'abord 'Aperçu algo' avant d'appliquer en base")
+        throw new Error("Lance d'abord une simulation avant d'enregistrer en base")
       }
       const data = await graphql<{ applyGeneratedSchedule: { ok: boolean; count: number; error?: string | null } }>(
         'mutation { applyGeneratedSchedule { ok count error } }',
@@ -95,11 +95,11 @@ export function AlgoTestPage({
             cursor: busy !== null ? 'not-allowed' : 'pointer',
           }}
         >
-          Appliquer en DB
+          Enregistrer en base
         </button>
         {previewSessions ? (
           <div style={{ alignSelf: 'center', fontSize: 12, color: 'rgba(13,31,53,0.55)' }}>
-            Aperçu actif (non enregistré) — {previewSessions.length} séance(s)
+            Simulation active (non enregistrée) — {previewSessions.length} séance(s)
           </div>
         ) : null}
       </div>

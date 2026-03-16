@@ -15,6 +15,8 @@ from .types import (
     ScheduledSession,
     SchoolClass,
     Subject,
+    TeacherSchedule,
+    TeacherUnavailabilityBlock,
 )
 
 
@@ -162,3 +164,116 @@ class Query:
                 )
             )
         return out
+
+    @strawberry.field
+    def teacher_schedule(self, info: strawberry.Info[GraphQLContext, None], professor_id: str) -> TeacherSchedule:
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
+
+        sessions_raw: list[ScheduledSession] = []
+        for (
+            ses_id,
+            dow,
+            start_min,
+            end_min,
+            created_at,
+            room_id,
+            room_name,
+            room_cap,
+            crs_id,
+            req,
+            sub_id,
+            sub_name,
+            cls_id,
+            cls_name,
+            prof_id,
+            prof_name,
+        ) in svc.list_scheduled_sessions():
+            if prof_id != professor_id:
+                continue
+            room = Room(id=room_id, name=room_name, capacity=room_cap)
+            course = Course(
+                id=crs_id,
+                required_hours_per_week=req,
+                subject=Subject(id=sub_id, name=sub_name),
+                school_class=SchoolClass(id=cls_id, name=cls_name),
+                professor=Professor(id=prof_id, name=prof_name),
+            )
+            sessions_raw.append(
+                ScheduledSession(
+                    id=ses_id,
+                    day_of_week=dow,
+                    start_minute=start_min,
+                    end_minute=end_min,
+                    created_at=created_at,
+                    course=course,
+                    room=room,
+                )
+            )
+
+        sessions_raw.sort(key=lambda s: (s.day_of_week, s.start_minute, s.end_minute, s.course.id, s.room.id))
+
+        merged_sessions: list[ScheduledSession] = []
+        cur: ScheduledSession | None = None
+        for s in sessions_raw:
+            if cur is None:
+                cur = s
+                continue
+
+            same_identity = (
+                cur.day_of_week == s.day_of_week
+                and cur.course.subject.id == s.course.subject.id
+                and cur.course.school_class.id == s.course.school_class.id
+                and cur.room.id == s.room.id
+            )
+            if same_identity and cur.end_minute == s.start_minute:
+                cur = ScheduledSession(
+                    id=cur.id,
+                    day_of_week=cur.day_of_week,
+                    start_minute=cur.start_minute,
+                    end_minute=s.end_minute,
+                    created_at=cur.created_at,
+                    course=cur.course,
+                    room=cur.room,
+                )
+                continue
+
+            merged_sessions.append(cur)
+            cur = s
+
+        if cur is not None:
+            merged_sessions.append(cur)
+
+        unv_raw: list[TeacherUnavailabilityBlock] = []
+        for (u_id, prof_id, _prof_name, dow, start, end) in svc.list_professor_unavailability():
+            if prof_id != professor_id:
+                continue
+            try:
+                hh_s, mm_s, *_ = str(start).split(":")
+                hh_e, mm_e, *_ = str(end).split(":")
+                start_min = int(hh_s) * 60 + int(mm_s)
+                end_min = int(hh_e) * 60 + int(mm_e)
+            except Exception:
+                continue
+            unv_raw.append(TeacherUnavailabilityBlock(day_of_week=dow, start_minute=start_min, end_minute=end_min))
+
+        unv_raw.sort(key=lambda u: (u.day_of_week, u.start_minute, u.end_minute))
+        merged_unv: list[TeacherUnavailabilityBlock] = []
+        curu: TeacherUnavailabilityBlock | None = None
+        for u in unv_raw:
+            if curu is None:
+                curu = u
+                continue
+            if curu.day_of_week == u.day_of_week and curu.end_minute >= u.start_minute:
+                curu = TeacherUnavailabilityBlock(
+                    day_of_week=curu.day_of_week,
+                    start_minute=curu.start_minute,
+                    end_minute=max(curu.end_minute, u.end_minute),
+                )
+                continue
+            merged_unv.append(curu)
+            curu = u
+
+        if curu is not None:
+            merged_unv.append(curu)
+
+        return TeacherSchedule(sessions=merged_sessions, unavailability=merged_unv)

@@ -646,8 +646,8 @@ function TeachersPage({
       <div style={S.statsRow}>
         {[
           { label: 'Total professeurs', value: professors.length, sub: 'enregistrés', icon: '⊛' },
-          { label: 'Backend', value: ping ? 'OK' : '...', sub: ping ? 'GraphQL actif' : 'en cours', icon: '◉' },
-          { label: 'DB', value: dbOk === null ? '...' : dbOk ? 'OK' : 'KO', sub: 'PostgreSQL', icon: '◈' },
+          { label: 'API', value: ping ? 'OK' : '...', sub: ping ? 'GraphQL actif' : 'en cours', icon: '◉' },
+          { label: 'Base de données', value: dbOk === null ? '...' : dbOk ? 'OK' : 'KO', sub: 'PostgreSQL', icon: '◈' },
           { label: 'Filtrés', value: filtered.length, sub: 'résultats', icon: '◷' },
         ].map((stat, i) => (
           <div key={i} style={S.statCard} className="stat-card">
@@ -953,7 +953,7 @@ export default function App() {
           <div style={{ padding: '10px 32px', color: '#c0392b', fontSize: 13, fontWeight: 700 }}>
             {pingError ? `API: ${pingError}` : null}
             {pingError && dbError ? ' · ' : null}
-            {dbError ? `DB: ${dbError}` : null}
+            {dbError ? `Base de données: ${dbError}` : null}
           </div>
         ) : null}
         {renderPage()}

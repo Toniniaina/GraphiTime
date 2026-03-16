@@ -26,6 +26,12 @@ export function PlanningPage({
   const [selectedWeek, setSelectedWeek] = useState(0)
   const [hoveredBlock, setHoveredBlock] = useState<number | null>(null)
 
+  const todayIdx = (() => {
+    const jsDay = new Date().getDay()
+    const mondayBased = (jsDay + 6) % 7
+    return mondayBased >= 0 && mondayBased < DAYS.length ? mondayBased : -1
+  })()
+
   useEffect(() => {
     if (!classes.length) return
     if (selectedClass && classes.some((c) => c.id === selectedClass)) return
@@ -188,9 +194,9 @@ export function PlanningPage({
         <div style={S.gridHeader}>
           <div style={S.timeCol} />
           {DAYS.map((day, i) => (
-            <div key={day} style={{ ...S.dayHeader, ...(i === 0 ? S.dayHeaderToday : {}) }}>
+            <div key={day} style={{ ...S.dayHeader, ...(i === todayIdx ? S.dayHeaderToday : {}) }}>
               <div style={S.dayName}>{day}</div>
-              {i === 0 ? <div style={S.todayBadge}>Aujourd'hui</div> : null}
+              {i === todayIdx ? <div style={S.todayBadge}>Aujourd'hui</div> : null}
             </div>
           ))}
         </div>
