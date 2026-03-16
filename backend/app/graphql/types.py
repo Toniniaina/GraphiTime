@@ -64,6 +64,19 @@ class ScheduledSession:
 
 
 @strawberry.type
+class TeacherUnavailabilityBlock:
+    day_of_week: int
+    start_minute: int
+    end_minute: int
+
+
+@strawberry.type
+class TeacherSchedule:
+    sessions: list[ScheduledSession]
+    unavailability: list[TeacherUnavailabilityBlock]
+
+
+@strawberry.type
 class ApplyScheduleResult:
     ok: bool
     count: int
