@@ -5,8 +5,8 @@ from ..repositories.professor_repository import ProfessorRepository
 from ..repositories.school_repository import SchoolRepository
 from ..services.auth_service import AuthService
 from ..services.professor_service import ProfessorService
-from ..services.school_service import SchoolService
 from ..services.scheduling_service import SchedulingService
+from ..services.school_service import SchoolService
 from .context import GraphQLContext
 from .types import (
     Course,
@@ -22,6 +22,15 @@ from .types import (
     TeacherSchedule,
     TeacherUnavailabilityBlock,
 )
+
+
+def _require_school_id(info: strawberry.Info[GraphQLContext, None]) -> str:
+    token = info.context.request.cookies.get("gt_session", "")
+    row = AuthService(AuthRepository(info.context.db_pool)).me_from_session_token(token)
+    if row is None:
+        raise RuntimeError("Not authenticated")
+    _acc_id, _login, school_id, _school_name = row
+    return school_id
 
 
 @strawberry.type
@@ -58,29 +67,34 @@ class Query:
 
     @strawberry.field
     def professors(self, info: strawberry.Info[GraphQLContext, None]) -> list[Professor]:
+        school_id = _require_school_id(info)
         svc = ProfessorService(ProfessorRepository(info.context.db_pool))
-        return [Professor(id=i, name=n) for (i, n) in svc.list_professors()]
+        return [Professor(id=i, name=n) for (i, n) in svc.list_professors(school_id)]
 
     @strawberry.field
     def classes(self, info: strawberry.Info[GraphQLContext, None]) -> list[SchoolClass]:
+        school_id = _require_school_id(info)
         svc = SchoolService(SchoolRepository(info.context.db_pool))
-        return [SchoolClass(id=i, name=n) for (i, n) in svc.list_classes()]
+        return [SchoolClass(id=i, name=n) for (i, n) in svc.list_classes(school_id)]
 
     @strawberry.field
     def rooms(self, info: strawberry.Info[GraphQLContext, None]) -> list[Room]:
+        school_id = _require_school_id(info)
         svc = SchoolService(SchoolRepository(info.context.db_pool))
-        return [Room(id=i, name=n, capacity=cap) for (i, n, cap) in svc.list_rooms()]
+        return [Room(id=i, name=n, capacity=cap) for (i, n, cap) in svc.list_rooms(school_id)]
 
     @strawberry.field
     def subjects(self, info: strawberry.Info[GraphQLContext, None]) -> list[Subject]:
+        school_id = _require_school_id(info)
         svc = SchoolService(SchoolRepository(info.context.db_pool))
-        return [Subject(id=i, name=n) for (i, n) in svc.list_subjects()]
+        return [Subject(id=i, name=n) for (i, n) in svc.list_subjects(school_id)]
 
     @strawberry.field
     def courses(self, info: strawberry.Info[GraphQLContext, None]) -> list[Course]:
+        school_id = _require_school_id(info)
         svc = SchoolService(SchoolRepository(info.context.db_pool))
         out: list[Course] = []
-        for (crs_id, req, sub_id, sub_name, cls_id, cls_name, prof_id, prof_name) in svc.list_courses():
+        for (crs_id, req, sub_id, sub_name, cls_id, cls_name, prof_id, prof_name) in svc.list_courses(school_id):
             out.append(
                 Course(
                     id=crs_id,
@@ -94,8 +108,9 @@ class Query:
 
     @strawberry.field
     def generate_schedule_preview(self, info: strawberry.Info[GraphQLContext, None]) -> list[ScheduledSession]:
+        school_id = _require_school_id(info)
         svc = SchedulingService(info.context.db_pool)
-        generated = svc.generate_preview()
+        generated = svc.generate_preview(school_id)
 
         out: list[ScheduledSession] = []
         for ses in generated:
@@ -124,9 +139,10 @@ class Query:
     def professor_unavailability(
         self, info: strawberry.Info[GraphQLContext, None]
     ) -> list[ProfessorUnavailability]:
+        school_id = _require_school_id(info)
         svc = SchoolService(SchoolRepository(info.context.db_pool))
         out: list[ProfessorUnavailability] = []
-        for (u_id, prof_id, prof_name, dow, start, end) in svc.list_professor_unavailability():
+        for (u_id, prof_id, prof_name, dow, start, end) in svc.list_professor_unavailability(school_id):
             out.append(
                 ProfessorUnavailability(
                     id=u_id,
@@ -140,6 +156,7 @@ class Query:
 
     @strawberry.field
     def scheduled_sessions(self, info: strawberry.Info[GraphQLContext, None]) -> list[ScheduledSession]:
+        school_id = _require_school_id(info)
         svc = SchoolService(SchoolRepository(info.context.db_pool))
         out: list[ScheduledSession] = []
         for (
@@ -159,7 +176,7 @@ class Query:
             cls_name,
             prof_id,
             prof_name,
-        ) in svc.list_scheduled_sessions():
+        ) in svc.list_scheduled_sessions(school_id):
             room = Room(id=room_id, name=room_name, capacity=room_cap)
             course = Course(
                 id=crs_id,
@@ -183,6 +200,7 @@ class Query:
 
     @strawberry.field
     def teacher_schedule(self, info: strawberry.Info[GraphQLContext, None], professor_id: str) -> TeacherSchedule:
+        school_id = _require_school_id(info)
         svc = SchoolService(SchoolRepository(info.context.db_pool))
 
         sessions_raw: list[ScheduledSession] = []
@@ -203,7 +221,7 @@ class Query:
             cls_name,
             prof_id,
             prof_name,
-        ) in svc.list_scheduled_sessions():
+        ) in svc.list_scheduled_sessions(school_id):
             if prof_id != professor_id:
                 continue
             room = Room(id=room_id, name=room_name, capacity=room_cap)
@@ -260,7 +278,7 @@ class Query:
             merged_sessions.append(cur)
 
         unv_raw: list[TeacherUnavailabilityBlock] = []
-        for (u_id, prof_id, _prof_name, dow, start, end) in svc.list_professor_unavailability():
+        for (u_id, prof_id, _prof_name, dow, start, end) in svc.list_professor_unavailability(school_id):
             if prof_id != professor_id:
                 continue
             try:
