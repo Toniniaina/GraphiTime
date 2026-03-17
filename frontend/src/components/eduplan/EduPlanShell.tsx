@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { NAV_ITEMS } from './data'
 import { S, css } from './styles'
-import type { DbClass } from './types'
+import type { DbClass, DbMe } from './types'
 
 export type EduPlanNavKey = 'planning' | 'algo' | 'classes' | 'teachers' | 'rooms' | 'subjects' | 'settings'
 
@@ -10,6 +10,8 @@ export function EduPlanShell({
   setActiveNav,
   sidebarOpen,
   setSidebarOpen,
+  me,
+  onLogout,
   quickClass,
   setQuickClass,
   classes,
@@ -20,12 +22,26 @@ export function EduPlanShell({
   setActiveNav: (key: EduPlanNavKey) => void
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
+  me?: DbMe | null
+  onLogout?: () => void | Promise<void>
   quickClass: string
   setQuickClass: (value: string) => void
   classes: DbClass[]
   topError?: string
   children: ReactNode
 }) {
+  const schoolName = me?.school?.name || '—'
+  const login = me?.login || '—'
+  const avatar = (() => {
+    const s = (me?.login || '').trim()
+    if (!s) return '—'
+    const parts = s.split(/[^a-zA-Z0-9]+/).filter(Boolean)
+    const a = (parts[0]?.[0] ?? s[0] ?? '').toUpperCase()
+    const b = (parts[1]?.[0] ?? s[1] ?? '').toUpperCase()
+    const out = `${a}${b}`.trim()
+    return out || '—'
+  })()
+
   return (
     <div style={S.root}>
       <style>{css}</style>
@@ -36,17 +52,41 @@ export function EduPlanShell({
             <span style={S.logoIcon}>✦</span>
             {sidebarOpen ? <span style={S.logoText}>EduPlan</span> : null}
           </div>
-          <button style={S.toggleBtn} onClick={() => setSidebarOpen(!sidebarOpen)}>
-            {sidebarOpen ? '‹' : '›'}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {me && onLogout ? (
+              <button
+                onClick={() => void onLogout()}
+                title="Déconnexion"
+                style={{
+                  background: 'rgba(244,240,232,0.06)',
+                  border: '1px solid rgba(244,240,232,0.14)',
+                  color: 'rgba(244,240,232,0.85)',
+                  width: 28,
+                  height: 28,
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                ⎋
+              </button>
+            ) : null}
+            <button style={S.toggleBtn} onClick={() => setSidebarOpen(!sidebarOpen)}>
+              {sidebarOpen ? '‹' : '›'}
+            </button>
+          </div>
         </div>
 
         {sidebarOpen ? (
           <div style={S.schoolLabel}>
             <div style={S.schoolDot} />
             <div>
-              <div style={S.schoolName}>Lycée Rajoelina</div>
-              <div style={S.schoolSub}>Antananarivo — 2025/2026</div>
+              <div style={S.schoolName}>{schoolName}</div>
+              <div style={S.schoolSub}>{me ? 'Connecté' : 'Non connecté'}</div>
             </div>
           </div>
         ) : null}
@@ -93,15 +133,37 @@ export function EduPlanShell({
                 )
               })}
             </div>
-            <div style={S.sidebarFooter}>
-              <div style={S.userAvatar}>JR</div>
-              <div>
-                <div style={S.userName}>Jean Rakoto</div>
-                <div style={S.userRole}>Administrateur</div>
-              </div>
-            </div>
           </>
         ) : null}
+
+        <div style={S.sidebarFooter}>
+          <div style={S.userAvatar}>{avatar}</div>
+          {sidebarOpen ? (
+            <div>
+              <div style={S.userName}>{login}</div>
+              <div style={S.userRole}>Administrateur</div>
+            </div>
+          ) : null}
+          {me && onLogout ? (
+            <button
+              onClick={() => void onLogout()}
+              title="Déconnexion"
+              style={{
+                marginLeft: 'auto',
+                background: 'transparent',
+                border: '1px solid rgba(244,240,232,0.18)',
+                color: 'rgba(244,240,232,0.85)',
+                borderRadius: 10,
+                padding: sidebarOpen ? '8px 10px' : '8px 9px',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              {sidebarOpen ? 'Déconnexion' : '⎋'}
+            </button>
+          ) : null}
+        </div>
       </aside>
 
       <main style={S.main}>

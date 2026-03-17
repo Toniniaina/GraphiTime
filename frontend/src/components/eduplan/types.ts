@@ -1,5 +1,9 @@
 export type Professor = { id: string; name: string }
 
+export type DbSchool = { id: string; name: string }
+
+export type DbMe = { accountId: string; login: string; school: DbSchool }
+
 export type DbClass = { id: string; name: string }
 
 export type DbRoom = { id: string; name: string; capacity: number }

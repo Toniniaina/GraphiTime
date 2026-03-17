@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EduPlan — Connexion</title>
+  <style>
+    /* ── RESET & BASE ───────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:   #0d1f35;
+      --navy2:  #1a3a5c;
+      --gold:   #c8922a;
+      --gold2:  #e8b84b;
+      --cream:  #f4f0e8;
+      --cream2: #ede8de;
+      --red:    #c0392b;
+      --green:  #2d6a4f;
+      --serif:  'Georgia', 'Times New Roman', serif;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: var(--serif);
+      background: var(--cream);
+      color: var(--navy);
+    }
+
+    /* ── LAYOUT ─────────────────────────────────────────── */
+    .auth-root {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* LEFT PANEL */
+    .panel-left {
+      width: 420px;
+      flex-shrink: 0;
+      background: var(--navy);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 48px 44px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* decorative geometric shapes */
+    .panel-left::before {
+      content: '';
+      position: absolute;
+      top: -80px; right: -80px;
+      width: 280px; height: 280px;
+      border: 1.5px solid rgba(200,146,42,0.15);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    .panel-left::after {
+      content: '';
+      position: absolute;
+      bottom: -60px; left: -60px;
+      width: 220px; height: 220px;
+      border: 1.5px solid rgba(200,146,42,0.1);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .geo-ring {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 360px; height: 360px;
+      border: 1px solid rgba(200,146,42,0.06);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    /* logo */
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+      z-index: 1;
+    }
+    .logo-star {
+      font-size: 28px;
+      color: var(--gold);
+      line-height: 1;
+    }
+    .logo-text {
+      font-size: 26px;
+      font-weight: 700;
+      color: #f4f0e8;
+      letter-spacing: 0.04em;
+    }
+
+    /* left body */
+    .panel-left-body {
+      position: relative;
+      z-index: 1;
+    }
+    .panel-tagline {
+      font-size: 32px;
+      font-weight: 700;
+      color: #f4f0e8;
+      line-height: 1.25;
+      margin-bottom: 18px;
+    }
+    .panel-tagline em {
+      font-style: normal;
+      color: var(--gold);
+    }
+    .panel-desc {
+      font-size: 14px;
+      color: rgba(244,240,232,0.55);
+      line-height: 1.7;
+      max-width: 300px;
+    }
+
+    /* feature list */
+    .features {
+      list-style: none;
+      margin-top: 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .features li {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      color: rgba(244,240,232,0.7);
+    }
+    .feat-icon {
+      width: 32px;
+      height: 32px;
+      background: rgba(200,146,42,0.12);
+      border: 1px solid rgba(200,146,42,0.2);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: var(--gold);
+      flex-shrink: 0;
+    }
+
+    /* school info */
+    .school-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(200,146,42,0.08);
+      border: 1px solid rgba(200,146,42,0.2);
+      border-radius: 12px;
+      padding: 14px 18px;
+      position: relative;
+      z-index: 1;
+    }
+    .school-dot {
+      width: 8px; height: 8px;
+      background: var(--gold);
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .school-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #f4f0e8;
+    }
+    .school-sub {
+      font-size: 11px;
+      color: rgba(244,240,232,0.45);
+      margin-top: 2px;
+    }
+
+    /* ── RIGHT PANEL ────────────────────────────────────── */
+    .panel-right {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 32px;
+      background: var(--cream);
+    }
+
+    /* ── CARD ───────────────────────────────────────────── */
+    .auth-card {
+      width: 100%;
+      max-width: 460px;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── TABS ───────────────────────────────────────────── */
+    .auth-tabs {
+      display: flex;
+      background: white;
+      border: 1px solid rgba(13,31,53,0.1);
+      border-radius: 14px;
+      padding: 4px;
+      margin-bottom: 32px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 10px 0;
+      background: transparent;
+      border: none;
+      border-radius: 10px;
+      font-family: var(--serif);
+      font-size: 14px;
+      font-weight: 600;
+      color: rgba(13,31,53,0.4);
+      cursor: pointer;
+      transition: all 0.25s;
+      letter-spacing: 0.02em;
+    }
+    .tab-btn.active {
+      background: var(--navy);
+      color: var(--gold);
+      box-shadow: 0 2px 10px rgba(13,31,53,0.15);
+    }
+
+    /* ── FORM HEADER ────────────────────────────────────── */
+    .form-title {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--navy);
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
+    }
+    .form-sub {
+      font-size: 13px;
+      color: rgba(13,31,53,0.45);
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+
+    /* ── FORM ───────────────────────────────────────────── */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 0;
+    }
+    .form-row .form-group {
+      margin-bottom: 0;
+    }
+
+    label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: rgba(13,31,53,0.5);
+      text-transform: uppercase;
+    }
+
+    .input-wrap {
+      position: relative;
+    }
+    .input-icon {
+      position: absolute;
+      left: 13px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 15px;
+      color: rgba(13,31,53,0.3);
+      pointer-events: none;
+    }
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    select.form-select {
+      width: 100%;
+      background: white;
+      border: 1.5px solid rgba(13,31,53,0.12);
+      border-radius: 11px;
+      padding: 11px 14px 11px 40px;
+      font-family: var(--serif);
+      font-size: 14px;
+      color: var(--navy);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    select.form-select {
+      appearance: none;
+      cursor: pointer;
+    }
+    input:focus, select:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(200,146,42,0.12);
+    }
+    input.error-field {
+      border-color: var(--red);
+    }
+
+    /* password toggle */
+    .pwd-toggle {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 15px;
+      color: rgba(13,31,53,0.35);
+      padding: 2px;
+      transition: color 0.15s;
+    }
+    .pwd-toggle:hover { color: var(--navy); }
+
+    /* error message */
+    .err-msg {
+      font-size: 11px;
+      color: var(--red);
+      margin-top: 2px;
+      display: none;
+    }
+    .err-msg.visible { display: block; }
+
+    /* ── ROLE SELECT ────────────────────────────────────── */
+    .role-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .role-card {
+      background: white;
+      border: 1.5px solid rgba(13,31,53,0.1);
+      border-radius: 11px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .role-card:hover {
+      border-color: rgba(200,146,42,0.4);
+    }
+    .role-card.selected {
+      border-color: var(--gold);
+      background: rgba(200,146,42,0.06);
+    }
+    .role-icon {
+      font-size: 18px;
+      color: var(--gold);
+    }
+    .role-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--navy);
+    }
+    .role-sub {
+      font-size: 10px;
+      color: rgba(13,31,53,0.4);
+      margin-top: 1px;
+    }
+    .role-radio {
+      display: none;
+    }
+
+    /* ── DIVIDER ────────────────────────────────────────── */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0;
+      color: rgba(13,31,53,0.25);
+      font-size: 12px;
+    }
+    .divider::before,
+    .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(13,31,53,0.1);
+    }
+
+    /* ── REMEMBER / FORGOT ──────────────────────────────── */
+    .form-footer-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .checkbox-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .checkbox-wrap input[type="checkbox"] {
+      width: 16px; height: 16px;
+      accent-color: var(--navy);
+      border-radius: 4px;
+      cursor: pointer;
+      padding: 0;
+      border: none;
+    }
+    .checkbox-label {
+      font-size: 13px;
+      color: rgba(13,31,53,0.6);
+    }
+    .forgot-link {
+      font-size: 13px;
+      color: var(--gold);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .forgot-link:hover { text-decoration: underline; }
+
+    /* ── SUBMIT BTN ─────────────────────────────────────── */
+    .submit-btn {
+      width: 100%;
+      background: var(--navy);
+      color: var(--gold);
+      border: none;
+      border-radius: 12px;
+      padding: 13px 0;
+      font-family: var(--serif);
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+    .submit-btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(200,146,42,0.08);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .submit-btn:hover::after { opacity: 1; }
+    .submit-btn:active { transform: scale(0.99); }
+
+    /* ── TOAST ──────────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--navy);
+      color: #f4f0e8;
+      border: 1px solid rgba(200,146,42,0.3);
+      border-radius: 12px;
+      padding: 13px 24px;
+      font-size: 14px;
+      font-family: var(--serif);
+      box-shadow: 0 8px 32px rgba(13,31,53,0.3);
+      opacity: 0;
+      transition: all 0.35s cubic-bezier(.4,0,.2,1);
+      z-index: 999;
+      white-space: nowrap;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .toast .toast-gold { color: var(--gold); font-weight: 700; }
+
+    /* ── ALERT ──────────────────────────────────────────── */
+    .alert {
+      border-radius: 11px;
+      padding: 12px 16px;
+      font-size: 13px;
+      margin-bottom: 18px;
+      display: none;
+    }
+    .alert.visible { display: block; }
+    .alert-error {
+      background: rgba(192,57,43,0.08);
+      border: 1px solid rgba(192,57,43,0.2);
+      color: var(--red);
+    }
+    .alert-success {
+      background: rgba(45,106,79,0.08);
+      border: 1px solid rgba(45,106,79,0.2);
+      color: var(--green);
+    }
+
+    /* ── PASSWORD STRENGTH ──────────────────────────────── */
+    .pwd-strength {
+      height: 3px;
+      background: rgba(13,31,53,0.1);
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+    .pwd-strength-bar {
+      height: 100%;
+      border-radius: 99px;
+      width: 0;
+      transition: width 0.3s, background 0.3s;
+    }
+    .pwd-hint {
+      font-size: 10px;
+      color: rgba(13,31,53,0.4);
+      margin-top: 4px;
+    }
+
+    /* ── TERMS ──────────────────────────────────────────── */
+    .terms-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .terms-row input[type="checkbox"] {
+      width: 16px; height: 16px;
+      accent-color: var(--navy);
+      margin-top: 1px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .terms-text {
+      font-size: 12px;
+      color: rgba(13,31,53,0.55);
+      line-height: 1.5;
+    }
+    .terms-text a { color: var(--gold); text-decoration: none; font-weight: 600; }
+
+    /* ── HIDDEN ─────────────────────────────────────────── */
+    .form-section { display: none; }
+    .form-section.active { display: block; }
+
+    /* ── RESPONSIVE ─────────────────────────────────────── */
+    @media (max-width: 760px) {
+      .panel-left { display: none; }
+      .panel-right { padding: 32px 20px; }
+    }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: rgba(13,31,53,0.15); border-radius: 99px; }
+  </style>
+</head>
+<body>
+
+<div class="auth-root">
+
+  <!-- ══ LEFT PANEL ══════════════════════════════════════════ -->
+  <div class="panel-left">
+    <div class="geo-ring"></div>
+
+    <!-- Logo -->
+    <div class="logo">
+      <span class="logo-star">✦</span>
+      <span class="logo-text">EduPlan</span>
+    </div>
+
+    <!-- Body -->
+    <div class="panel-left-body">
+      <div class="panel-tagline">
+        Gérez votre école<br>avec <em>élégance</em>
+      </div>
+      <p class="panel-desc">
+        Planifiez les emplois du temps, gérez les classes, les professeurs et les salles — tout en un seul endroit.
+      </p>
+      <ul class="features">
+        <li>
+          <div class="feat-icon">◉</div>
+          Planning visuel hebdomadaire
+        </li>
+        <li>
+          <div class="feat-icon">⊞</div>
+          Gestion des classes & effectifs
+        </li>
+        <li>
+          <div class="feat-icon">⊛</div>
+          Suivi des professeurs & matières
+        </li>
+        <li>
+          <div class="feat-icon">◈</div>
+          Attribution intelligente des salles
+        </li>
+      </ul>
+    </div>
+
+    <!-- School badge -->
+    <div class="school-badge">
+      <div class="school-dot"></div>
+      <div>
+        <div class="school-name">Lycée Rajoelina</div>
+        <div class="school-sub">Antananarivo — 2025/2026</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ RIGHT PANEL ═════════════════════════════════════════ -->
+  <div class="panel-right">
+    <div class="auth-card">
+
+      <!-- TABS -->
+      <div class="auth-tabs">
+        <button class="tab-btn active" id="tab-login" onclick="switchTab('login')">Connexion</button>
+        <button class="tab-btn" id="tab-signup" onclick="switchTab('signup')">Créer un compte</button>
+      </div>
+
+      <!-- ══ LOGIN FORM ══════════════════════════════════════ -->
+      <div class="form-section active" id="section-login">
+        <div class="form-title">Bon retour 👋</div>
+        <p class="form-sub">Connectez-vous à votre espace EduPlan</p>
+
+        <div id="login-alert" class="alert alert-error">
+          ⚠ Identifiants incorrects. Vérifiez votre email et mot de passe.
+        </div>
+
+        <div class="form-group">
+          <label>Adresse email</label>
+          <div class="input-wrap">
+            <span class="input-icon">◎</span>
+            <input type="email" id="login-email" placeholder="votre@email.com" />
+          </div>
+          <span class="err-msg" id="err-login-email">Email invalide</span>
+        </div>
+
+        <div class="form-group">
+          <label>Mot de passe</label>
+          <div class="input-wrap">
+            <span class="input-icon">◈</span>
+            <input type="password" id="login-pwd" placeholder="••••••••" />
+            <button class="pwd-toggle" onclick="togglePwd('login-pwd', this)" tabindex="-1">👁</button>
+          </div>
+          <span class="err-msg" id="err-login-pwd">Mot de passe requis</span>
+        </div>
+
+        <div class="form-footer-row">
+          <label class="checkbox-wrap">
+            <input type="checkbox" id="remember" />
+            <span class="checkbox-label">Se souvenir de moi</span>
+          </label>
+          <a href="#" class="forgot-link" onclick="showForgot(event)">Mot de passe oublié ?</a>
+        </div>
+
+        <button class="submit-btn" onclick="handleLogin()">Connexion →</button>
+
+        <div style="text-align:center; font-size:13px; color:rgba(13,31,53,0.45);">
+          Pas encore de compte ?
+          <a href="#" style="color:var(--gold);font-weight:600;text-decoration:none;" onclick="switchTab('signup');return false;">Créer un compte</a>
+        </div>
+      </div>
+
+      <!-- ══ SIGNUP FORM ═════════════════════════════════════ -->
+      <div class="form-section" id="section-signup">
+        <div class="form-title">Créer un compte</div>
+        <p class="form-sub">Rejoignez EduPlan pour gérer votre établissement</p>
+
+        <div id="signup-alert" class="alert alert-error"></div>
+
+        <!-- Name row -->
+        <div class="form-row" style="margin-bottom:16px;">
+          <div class="form-group">
+            <label>Prénom</label>
+            <div class="input-wrap">
+              <span class="input-icon">⊛</span>
+              <input type="text" id="signup-firstname" placeholder="Jean" />
+            </div>
+            <span class="err-msg" id="err-signup-firstname">Requis</span>
+          </div>
+          <div class="form-group">
+            <label>Nom</label>
+            <div class="input-wrap">
+              <span class="input-icon">⊛</span>
+              <input type="text" id="signup-lastname" placeholder="Rakoto" />
+            </div>
+            <span class="err-msg" id="err-signup-lastname">Requis</span>
+          </div>
+        </div>
+
+        <!-- Email -->
+        <div class="form-group">
+          <label>Adresse email</label>
+          <div class="input-wrap">
+            <span class="input-icon">◎</span>
+            <input type="email" id="signup-email" placeholder="votre@email.com" />
+          </div>
+          <span class="err-msg" id="err-signup-email">Email invalide</span>
+        </div>
+
+        <!-- Role -->
+        <div class="form-group" style="margin-bottom:6px;">
+          <label>Rôle</label>
+        </div>
+        <div class="role-grid" id="role-grid">
+          <div class="role-card selected" onclick="selectRole(this, 'admin')">
+            <span class="role-icon">◉</span>
+            <div>
+              <div class="role-label">Administrateur</div>
+              <div class="role-sub">Accès complet</div>
+            </div>
+          </div>
+          <div class="role-card" onclick="selectRole(this, 'teacher')">
+            <span class="role-icon">⊛</span>
+            <div>
+              <div class="role-label">Professeur</div>
+              <div class="role-sub">Voir les plannings</div>
+            </div>
+          </div>
+          <div class="role-card" onclick="selectRole(this, 'director')">
+            <span class="role-icon">◈</span>
+            <div>
+              <div class="role-label">Directeur</div>
+              <div class="role-sub">Vue globale</div>
+            </div>
+          </div>
+          <div class="role-card" onclick="selectRole(this, 'secretary')">
+            <span class="role-icon">⊞</span>
+            <div>
+              <div class="role-label">Secrétaire</div>
+              <div class="role-sub">Saisie des données</div>
+            </div>
+          </div>
+        </div>
+        <input type="hidden" id="selected-role" value="admin" />
+
+        <!-- Password -->
+        <div class="form-group">
+          <label>Mot de passe</label>
+          <div class="input-wrap">
+            <span class="input-icon">◈</span>
+            <input type="password" id="signup-pwd" placeholder="Min. 8 caractères" oninput="checkStrength(this.value)" />
+            <button class="pwd-toggle" onclick="togglePwd('signup-pwd', this)" tabindex="-1">👁</button>
+          </div>
+          <div class="pwd-strength">
+            <div class="pwd-strength-bar" id="pwd-bar"></div>
+          </div>
+          <div class="pwd-hint" id="pwd-hint">Saisissez un mot de passe</div>
+          <span class="err-msg" id="err-signup-pwd">Min. 8 caractères</span>
+        </div>
+
+        <!-- Confirm password -->
+        <div class="form-group">
+          <label>Confirmer le mot de passe</label>
+          <div class="input-wrap">
+            <span class="input-icon">◈</span>
+            <input type="password" id="signup-confirm" placeholder="Répétez le mot de passe" />
+            <button class="pwd-toggle" onclick="togglePwd('signup-confirm', this)" tabindex="-1">👁</button>
+          </div>
+          <span class="err-msg" id="err-signup-confirm">Les mots de passe ne correspondent pas</span>
+        </div>
+
+        <!-- Terms -->
+        <div class="terms-row">
+          <input type="checkbox" id="terms" />
+          <span class="terms-text">
+            J'accepte les <a href="#">conditions d'utilisation</a> et la
+            <a href="#">politique de confidentialité</a> d'EduPlan
+          </span>
+        </div>
+
+        <button class="submit-btn" onclick="handleSignup()">Créer mon compte →</button>
+
+        <div style="text-align:center; font-size:13px; color:rgba(13,31,53,0.45);">
+          Déjà un compte ?
+          <a href="#" style="color:var(--gold);font-weight:600;text-decoration:none;" onclick="switchTab('login');return false;">Se connecter</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── STATE ──────────────────────────────────────────────────
+  let currentRole = 'admin';
+
+  // ── TAB SWITCH ─────────────────────────────────────────────
+  function switchTab(tab) {
+    document.getElementById('section-login').classList.toggle('active', tab === 'login');
+    document.getElementById('section-signup').classList.toggle('active', tab === 'signup');
+    document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+    document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+    clearErrors();
+  }
+
+  // ── ROLE SELECTION ─────────────────────────────────────────
+  function selectRole(card, role) {
+    document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    currentRole = role;
+    document.getElementById('selected-role').value = role;
+  }
+
+  // ── TOGGLE PASSWORD ────────────────────────────────────────
+  function togglePwd(id, btn) {
+    const input = document.getElementById(id);
+    if (input.type === 'password') {
+      input.type = 'text';
+      btn.textContent = '🙈';
+    } else {
+      input.type = 'password';
+      btn.textContent = '👁';
+    }
+  }
+
+  // ── PASSWORD STRENGTH ──────────────────────────────────────
+  function checkStrength(val) {
+    const bar = document.getElementById('pwd-bar');
+    const hint = document.getElementById('pwd-hint');
+    let score = 0;
+    if (val.length >= 8) score++;
+    if (/[A-Z]/.test(val)) score++;
+    if (/[0-9]/.test(val)) score++;
+    if (/[^A-Za-z0-9]/.test(val)) score++;
+    const colors = ['#c0392b','#e67e22','#c8922a','#2d6a4f'];
+    const labels = ['Très faible','Moyen','Bien','Excellent'];
+    const widths = ['25%','50%','75%','100%'];
+    if (val.length === 0) {
+      bar.style.width = '0'; hint.textContent = 'Saisissez un mot de passe';
+    } else {
+      const i = Math.max(0, score - 1);
+      bar.style.width = widths[i];
+      bar.style.background = colors[i];
+      hint.textContent = labels[i];
+      hint.style.color = colors[i];
+    }
+  }
+
+  // ── VALIDATION HELPERS ─────────────────────────────────────
+  function showErr(id, msg) {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = msg || el.textContent; el.classList.add('visible'); }
+  }
+  function hideErr(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('visible');
+  }
+  function clearErrors() {
+    document.querySelectorAll('.err-msg').forEach(e => e.classList.remove('visible'));
+    document.querySelectorAll('.alert').forEach(e => e.classList.remove('visible'));
+    document.querySelectorAll('input').forEach(i => i.classList.remove('error-field'));
+  }
+  function markError(inputId, errId, msg) {
+    const inp = document.getElementById(inputId);
+    if (inp) inp.classList.add('error-field');
+    showErr(errId, msg);
+  }
+
+  // ── TOAST ──────────────────────────────────────────────────
+  function showToast(html) {
+    const t = document.getElementById('toast');
+    t.innerHTML = html;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3500);
+  }
+
+  // ── FORGOT PASSWORD ────────────────────────────────────────
+  function showForgot(e) {
+    e.preventDefault();
+    showToast('📧 Un lien de réinitialisation sera envoyé à votre adresse email.');
+  }
+
+  // ── LOGIN HANDLER ──────────────────────────────────────────
+  function handleLogin() {
+    clearErrors();
+    const email = document.getElementById('login-email').value.trim();
+    const pwd   = document.getElementById('login-pwd').value;
+    let valid = true;
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      markError('login-email','err-login-email','Email invalide');
+      valid = false;
+    }
+    if (!pwd) {
+      markError('login-pwd','err-login-pwd','Mot de passe requis');
+      valid = false;
+    }
+    if (!valid) return;
+
+    // Simulate login (replace with real API call)
+    const btn = document.querySelector('#section-login .submit-btn');
+    btn.textContent = '⟳ Connexion en cours…';
+    btn.disabled = true;
+
+    setTimeout(() => {
+      btn.textContent = 'Connexion →';
+      btn.disabled = false;
+      // Demo: admin@eduplan.mg / admin123
+      if (email === 'admin@eduplan.mg' && pwd === 'admin123') {
+        showToast('✦ Bienvenue, <span class="toast-gold">Jean Rakoto</span> ! Redirection…');
+        setTimeout(() => {
+          // Redirect to dashboard — replace with your actual URL
+          alert('✅ Connexion réussie ! Intégrez ici votre redirect vers le dashboard React.');
+        }, 1500);
+      } else {
+        document.getElementById('login-alert').classList.add('visible');
+      }
+    }, 1200);
+  }
+
+  // ── SIGNUP HANDLER ─────────────────────────────────────────
+  function handleSignup() {
+    clearErrors();
+    const firstname = document.getElementById('signup-firstname').value.trim();
+    const lastname  = document.getElementById('signup-lastname').value.trim();
+    const email     = document.getElementById('signup-email').value.trim();
+    const pwd       = document.getElementById('signup-pwd').value;
+    const confirm   = document.getElementById('signup-confirm').value;
+    const terms     = document.getElementById('terms').checked;
+    let valid = true;
+
+    if (!firstname) { markError('signup-firstname','err-signup-firstname','Prénom requis'); valid = false; }
+    if (!lastname)  { markError('signup-lastname','err-signup-lastname','Nom requis'); valid = false; }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      markError('signup-email','err-signup-email','Email invalide');
+      valid = false;
+    }
+    if (pwd.length < 8) { markError('signup-pwd','err-signup-pwd','Min. 8 caractères'); valid = false; }
+    if (pwd !== confirm) { markError('signup-confirm','err-signup-confirm','Les mots de passe ne correspondent pas'); valid = false; }
+    if (!terms) {
+      const alert = document.getElementById('signup-alert');
+      alert.textContent = '⚠ Vous devez accepter les conditions d\'utilisation.';
+      alert.classList.add('visible');
+      valid = false;
+    }
+    if (!valid) return;
+
+    const btn = document.querySelector('#section-signup .submit-btn');
+    btn.textContent = '⟳ Création en cours…';
+    btn.disabled = true;
+
+    setTimeout(() => {
+      btn.textContent = 'Créer mon compte →';
+      btn.disabled = false;
+      showToast(`✦ Compte créé ! Bienvenue, <span class="toast-gold">${firstname} ${lastname}</span>`);
+      setTimeout(() => switchTab('login'), 1600);
+    }, 1400);
+  }
+
+  // ── KEYBOARD SUPPORT ───────────────────────────────────────
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      if (document.getElementById('section-login').classList.contains('active')) {
+        handleLogin();
+      } else {
+        handleSignup();
+      }
+    }
+  });
+</script>
+
+</body>
+</html>
