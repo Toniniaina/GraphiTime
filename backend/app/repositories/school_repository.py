@@ -7,14 +7,85 @@ class SchoolRepository:
     def __init__(self, pool: ConnectionPool) -> None:
         self._pool = pool
 
-    def list_classes(self, school_id: str) -> list[tuple[str, str]]:
+    def list_classes(self, school_id: str) -> list[tuple[str, str, str | None]]:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT id, name FROM classes WHERE school_id=%s ORDER BY name",
+                    "SELECT id, name, home_room_id FROM classes WHERE school_id=%s ORDER BY name",
                     (school_id,),
                 )
-                return [(str(r[0]), str(r[1])) for r in (cur.fetchall() or [])]
+                return [(str(r[0]), str(r[1]), str(r[2]) if r[2] is not None else None) for r in (cur.fetchall() or [])]
+
+    def create_class(self, school_id: str, name: str) -> tuple[str, str, str | None]:
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO classes (school_id, name) VALUES (%s, %s) RETURNING id, name, home_room_id",
+                    (school_id, name),
+                )
+                row = cur.fetchone()
+            conn.commit()
+
+        if row is None:
+            raise RuntimeError("Failed to insert class")
+        return (str(row[0]), str(row[1]), str(row[2]) if row[2] is not None else None)
+
+    def rename_class(self, school_id: str, class_id: str, new_name: str) -> tuple[str, str, str | None]:
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE classes
+                    SET name=%s
+                    WHERE id=%s AND school_id=%s
+                    RETURNING id, name, home_room_id
+                    """,
+                    (new_name, class_id, school_id),
+                )
+                row = cur.fetchone()
+            conn.commit()
+
+        if row is None:
+            raise RuntimeError("Class not found")
+        return (str(row[0]), str(row[1]), str(row[2]) if row[2] is not None else None)
+
+    def delete_class(self, school_id: str, class_id: str) -> bool:
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM classes WHERE id=%s AND school_id=%s",
+                    (class_id, school_id),
+                )
+                deleted = cur.rowcount or 0
+            conn.commit()
+        return deleted > 0
+
+    def set_class_home_room(self, school_id: str, class_id: str, room_id: str | None) -> tuple[str, str, str | None]:
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                if room_id is not None:
+                    cur.execute(
+                        "SELECT 1 FROM rooms WHERE id=%s AND school_id=%s",
+                        (room_id, school_id),
+                    )
+                    if cur.fetchone() is None:
+                        raise RuntimeError("Room not found")
+
+                cur.execute(
+                    """
+                    UPDATE classes
+                    SET home_room_id=%s
+                    WHERE id=%s AND school_id=%s
+                    RETURNING id, name, home_room_id
+                    """,
+                    (room_id, class_id, school_id),
+                )
+                row = cur.fetchone()
+            conn.commit()
+
+        if row is None:
+            raise RuntimeError("Class not found")
+        return (str(row[0]), str(row[1]), str(row[2]) if row[2] is not None else None)
 
     def list_rooms(self, school_id: str) -> list[tuple[str, str, int]]:
         with self._pool.connection() as conn:

@@ -2,20 +2,36 @@ import strawberry
 
 from ..repositories.auth_repository import AuthRepository
 from ..repositories.professor_repository import ProfessorRepository
+from ..repositories.school_repository import SchoolRepository
 from ..services.auth_service import AuthService
 from ..services.professor_service import ProfessorService
 from ..services.scheduling_service import SchedulingService
+from ..services.school_service import SchoolService
 from .context import GraphQLContext
 from .types import (
     ApplyScheduleResult,
     AuthPayload,
+    CreateClassInput,
     CreateProfessorInput,
+    DeleteClassInput,
     LoginInput,
     Me,
     Professor,
+    RenameClassInput,
     RegisterSchoolInput,
     School,
+    SchoolClass,
+    SetClassHomeRoomInput,
 )
+
+
+def _require_school_id(info: strawberry.Info[GraphQLContext, None]) -> str:
+    token = info.context.request.cookies.get("gt_session", "")
+    me_row = AuthService(AuthRepository(info.context.db_pool)).me_from_session_token(token)
+    if me_row is None:
+        raise RuntimeError("Not authenticated")
+    _acc_id, _login, school_id, _school_name = me_row
+    return school_id
 
 
 @strawberry.type
@@ -90,23 +106,44 @@ class Mutation:
     def create_professor(
         self, info: strawberry.Info[GraphQLContext, None], input: CreateProfessorInput
     ) -> Professor:
-        token = info.context.request.cookies.get("gt_session", "")
-        me_row = AuthService(AuthRepository(info.context.db_pool)).me_from_session_token(token)
-        if me_row is None:
-            raise RuntimeError("Not authenticated")
-        _acc_id, _login, school_id, _school_name = me_row
+        school_id = _require_school_id(info)
         svc = ProfessorService(ProfessorRepository(info.context.db_pool))
         pid, name = svc.create_professor(school_id, input.name)
         return Professor(id=pid, name=name)
 
     @strawberry.mutation
+    def create_class(self, info: strawberry.Info[GraphQLContext, None], input: CreateClassInput) -> SchoolClass:
+        school_id = _require_school_id(info)
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
+        cid, name, hr = svc.create_class(school_id, input.name)
+        return SchoolClass(id=cid, name=name, home_room_id=hr)
+
+    @strawberry.mutation
+    def rename_class(self, info: strawberry.Info[GraphQLContext, None], input: RenameClassInput) -> SchoolClass:
+        school_id = _require_school_id(info)
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
+        cid, name, hr = svc.rename_class(school_id, input.id, input.name)
+        return SchoolClass(id=cid, name=name, home_room_id=hr)
+
+    @strawberry.mutation
+    def delete_class(self, info: strawberry.Info[GraphQLContext, None], input: DeleteClassInput) -> bool:
+        school_id = _require_school_id(info)
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
+        return svc.delete_class(school_id, input.id)
+
+    @strawberry.mutation
+    def set_class_home_room(
+        self, info: strawberry.Info[GraphQLContext, None], input: SetClassHomeRoomInput
+    ) -> SchoolClass:
+        school_id = _require_school_id(info)
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
+        cid, name, hr = svc.set_class_home_room(school_id, input.class_id, input.room_id)
+        return SchoolClass(id=cid, name=name, home_room_id=hr)
+
+    @strawberry.mutation
     def apply_generated_schedule(self, info: strawberry.Info[GraphQLContext, None]) -> ApplyScheduleResult:
         try:
-            token = info.context.request.cookies.get("gt_session", "")
-            me_row = AuthService(AuthRepository(info.context.db_pool)).me_from_session_token(token)
-            if me_row is None:
-                raise RuntimeError("Not authenticated")
-            _acc_id, _login, school_id, _school_name = me_row
+            school_id = _require_school_id(info)
             svc = SchedulingService(info.context.db_pool)
             generated = svc.generate_preview(school_id)
             svc.apply_generated_schedule(school_id, generated)

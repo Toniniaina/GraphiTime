@@ -75,7 +75,7 @@ class Query:
     def classes(self, info: strawberry.Info[GraphQLContext, None]) -> list[SchoolClass]:
         school_id = _require_school_id(info)
         svc = SchoolService(SchoolRepository(info.context.db_pool))
-        return [SchoolClass(id=i, name=n) for (i, n) in svc.list_classes(school_id)]
+        return [SchoolClass(id=i, name=n, home_room_id=hr) for (i, n, hr) in svc.list_classes(school_id)]
 
     @strawberry.field
     def rooms(self, info: strawberry.Info[GraphQLContext, None]) -> list[Room]:

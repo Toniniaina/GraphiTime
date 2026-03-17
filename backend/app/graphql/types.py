@@ -41,6 +41,7 @@ class AuthPayload:
 class SchoolClass:
     id: str
     name: str
+    home_room_id: str | None = None
 
 
 @strawberry.type
@@ -108,6 +109,28 @@ class ApplyScheduleResult:
 @strawberry.input
 class CreateProfessorInput:
     name: str
+
+
+@strawberry.input
+class CreateClassInput:
+    name: str
+
+
+@strawberry.input
+class RenameClassInput:
+    id: str
+    name: str
+
+
+@strawberry.input
+class DeleteClassInput:
+    id: str
+
+
+@strawberry.input
+class SetClassHomeRoomInput:
+    class_id: str
+    room_id: str | None = None
 
 
 @strawberry.input
