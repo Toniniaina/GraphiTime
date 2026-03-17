@@ -10,6 +10,37 @@ CREATE SEQUENCE IF NOT EXISTS courses_seq;
 CREATE SEQUENCE IF NOT EXISTS professor_unavailability_seq;
 CREATE SEQUENCE IF NOT EXISTS scheduled_sessions_seq;
 
+CREATE SEQUENCE IF NOT EXISTS schools_seq;
+CREATE SEQUENCE IF NOT EXISTS school_accounts_seq;
+CREATE SEQUENCE IF NOT EXISTS auth_sessions_seq;
+
+CREATE TABLE schools (
+    id VARCHAR(16) PRIMARY KEY DEFAULT ('SCH' || lpad(nextval('schools_seq')::text, 5, '0')),
+    name TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE school_accounts (
+    id VARCHAR(16) PRIMARY KEY DEFAULT ('ACC' || lpad(nextval('school_accounts_seq')::text, 5, '0')),
+    school_id VARCHAR(16) NOT NULL UNIQUE REFERENCES schools(id) ON DELETE CASCADE,
+    login TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_login_at TIMESTAMPTZ
+);
+
+CREATE TABLE auth_sessions (
+    id VARCHAR(16) PRIMARY KEY DEFAULT ('SSN' || lpad(nextval('auth_sessions_seq')::text, 5, '0')),
+    account_id VARCHAR(16) NOT NULL REFERENCES school_accounts(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    revoked_at TIMESTAMPTZ,
+    ip TEXT,
+    user_agent TEXT
+);
+
 CREATE TABLE professors (
     id VARCHAR(16) PRIMARY KEY DEFAULT ('PRF' || lpad(nextval('professors_seq')::text, 5, '0')),
     name TEXT NOT NULL

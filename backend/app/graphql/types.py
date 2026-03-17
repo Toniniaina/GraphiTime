@@ -6,6 +6,8 @@ class DbStatus:
     ok: bool
     db_time: str
     db_version: str
+    database_name: str = ""
+    database_user: str = ""
     error: str | None = None
 
 
@@ -13,6 +15,26 @@ class DbStatus:
 class Professor:
     id: str
     name: str
+
+
+@strawberry.type
+class School:
+    id: str
+    name: str
+
+
+@strawberry.type
+class Me:
+    account_id: str
+    login: str
+    school: School
+
+
+@strawberry.type
+class AuthPayload:
+    ok: bool
+    me: Me | None = None
+    error: str | None = None
 
 
 @strawberry.type
@@ -86,3 +108,16 @@ class ApplyScheduleResult:
 @strawberry.input
 class CreateProfessorInput:
     name: str
+
+
+@strawberry.input
+class RegisterSchoolInput:
+    school_name: str
+    login: str
+    password: str
+
+
+@strawberry.input
+class LoginInput:
+    login: str
+    password: str

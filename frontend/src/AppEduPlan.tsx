@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import './App.css'
 import { EduPlanShell, type EduPlanNavKey } from './components/eduplan/EduPlanShell'
+import { AuthPage } from './components/eduplan/AuthPage.tsx'
 import { PlanningPage } from './components/eduplan/PlanningPage'
 import { AlgoTestPage } from './components/eduplan/AlgoTestPage'
 import { ClassesPage } from './components/eduplan/ClassesPage'
@@ -15,6 +16,7 @@ import type {
   DbProfessorUnavailability,
   DbRoom,
   DbScheduledSession,
+  DbMe,
   DbSubject,
   Professor,
 } from './components/eduplan/types'
@@ -30,6 +32,8 @@ export default function AppEduPlan() {
   const [pingError, setPingError] = useState<string>('')
   const [dbOk, setDbOk] = useState<boolean | null>(null)
   const [dbError, setDbError] = useState<string>('')
+
+  const [me, setMe] = useState<DbMe | null | undefined>(undefined)
 
   const [professors, setProfessors] = useState<Professor[]>([])
   const [newProfessorName, setNewProfessorName] = useState<string>('')
@@ -67,12 +71,18 @@ export default function AppEduPlan() {
     navigate(map[key])
   }
 
-  async function graphql<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
+  async function graphql<T>(query: string, variables?: Record<string, unknown>, timeoutMs = 8000): Promise<T> {
+    const ctrl = new AbortController()
+    const t = window.setTimeout(() => ctrl.abort(), timeoutMs)
     const res = await fetch('/graphql', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      signal: ctrl.signal,
       body: JSON.stringify({ query, variables }),
     })
+
+    window.clearTimeout(t)
 
     const json = await res.json()
     if (!res.ok || json?.errors?.length) {
@@ -84,7 +94,14 @@ export default function AppEduPlan() {
   async function refreshAll() {
     const data = await graphql<{
       ping: string
-      dbStatus: { ok: boolean; dbTime: string; dbVersion: string; error?: string | null }
+      dbStatus: {
+        ok: boolean
+        dbTime: string
+        dbVersion: string
+        databaseName: string
+        databaseUser: string
+        error?: string | null
+      }
       professors: Array<{ id: string; name: string }>
       classes: Array<{ id: string; name: string }>
       rooms: Array<{ id: string; name: string; capacity: number }>
@@ -119,7 +136,7 @@ export default function AppEduPlan() {
         professor: { id: string; name: string }
       }>
     }>(
-      'query { ping dbStatus { ok dbTime dbVersion error } professors { id name } classes { id name } rooms { id name capacity } subjects { id name } courses { id requiredHoursPerWeek subject { id name } schoolClass { id name } professor { id name } } scheduledSessions { id dayOfWeek startMinute endMinute createdAt room { id name capacity } course { id requiredHoursPerWeek subject { id name } schoolClass { id name } professor { id name } } } professorUnavailability { id dayOfWeek startTime endTime professor { id name } } }',
+      'query { ping dbStatus { ok dbTime dbVersion databaseName databaseUser error } professors { id name } classes { id name } rooms { id name capacity } subjects { id name } courses { id requiredHoursPerWeek subject { id name } schoolClass { id name } professor { id name } } scheduledSessions { id dayOfWeek startMinute endMinute createdAt room { id name capacity } course { id requiredHoursPerWeek subject { id name } schoolClass { id name } professor { id name } } } professorUnavailability { id dayOfWeek startTime endTime professor { id name } } }',
     )
 
     setPing(data.ping)
@@ -137,11 +154,30 @@ export default function AppEduPlan() {
   useEffect(() => {
     let cancelled = false
 
-    refreshAll().catch((e) => {
-      if (!cancelled) {
-        setPingError(e instanceof Error ? e.message : String(e))
-      }
-    })
+    graphql<{ me: DbMe | null }>('query { me { accountId login school { id name } } }', undefined, 8000)
+      .then((d) => {
+        if (cancelled) return
+        setMe(d.me)
+        if (d.me) {
+          refreshAll().catch((e) => {
+            if (!cancelled) {
+              setPingError(e instanceof Error ? e.message : String(e))
+            }
+          })
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setMe(null)
+          setPingError(
+            e instanceof DOMException && e.name === 'AbortError'
+              ? "Impossible de joindre le backend (/graphql). Vérifie que l'API tourne sur :8000."
+              : e instanceof Error
+                ? e.message
+                : String(e),
+          )
+        }
+      })
 
     return () => {
       cancelled = true
@@ -172,6 +208,17 @@ export default function AppEduPlan() {
     }
   }
 
+  async function logout() {
+    try {
+      await graphql<{ logout: { ok: boolean; error?: string | null } }>('mutation { logout { ok error } }', undefined, 8000)
+    } catch (e) {
+      setPingError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setMe(null)
+      navigate('/login')
+    }
+  }
+
   const topError = [
     pingError ? `API: ${pingError}` : '',
     dbError ? `Base de données: ${dbError}` : '',
@@ -179,18 +226,45 @@ export default function AppEduPlan() {
     .filter(Boolean)
     .join(' · ')
 
+  if (me === undefined) {
+    return <div style={{ padding: 24, color: '#0d1f35', fontWeight: 700 }}>Chargement…</div>
+  }
+
+  if (me === null) {
+    return (
+      <Routes>
+        <Route
+          path="/login"
+          element={
+            <AuthPage
+              onAuthed={async (nextMe: DbMe) => {
+                setMe(nextMe)
+                await refreshAll()
+                navigate('/planning')
+              }}
+            />
+          }
+        />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    )
+  }
+
   return (
     <EduPlanShell
       activeNav={activeNav}
       setActiveNav={setActiveNav}
       sidebarOpen={sidebarOpen}
       setSidebarOpen={setSidebarOpen}
+      me={me}
+      onLogout={logout}
       quickClass={quickClassId}
       setQuickClass={setQuickClassId}
       classes={classes}
       topError={topError || undefined}
     >
       <Routes>
+        <Route path="/login" element={<Navigate to="/planning" replace />} />
         <Route path="/" element={<Navigate to="/planning" replace />} />
         <Route
           path="/planning"

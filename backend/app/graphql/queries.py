@@ -1,7 +1,9 @@
 import strawberry
 
+from ..repositories.auth_repository import AuthRepository
 from ..repositories.professor_repository import ProfessorRepository
 from ..repositories.school_repository import SchoolRepository
+from ..services.auth_service import AuthService
 from ..services.professor_service import ProfessorService
 from ..services.school_service import SchoolService
 from ..services.scheduling_service import SchedulingService
@@ -9,11 +11,13 @@ from .context import GraphQLContext
 from .types import (
     Course,
     DbStatus,
+    Me,
     Professor,
     ProfessorUnavailability,
     Room,
     ScheduledSession,
     SchoolClass,
+    School,
     Subject,
     TeacherSchedule,
     TeacherUnavailabilityBlock,
@@ -27,18 +31,30 @@ class Query:
         return "pong"
 
     @strawberry.field
+    def me(self, info: strawberry.Info[GraphQLContext, None]) -> Me | None:
+        token = info.context.request.cookies.get("gt_session", "")
+        svc = AuthService(AuthRepository(info.context.db_pool))
+        row = svc.me_from_session_token(token)
+        if row is None:
+            return None
+        acc_id, login, school_id, school_name = row
+        return Me(account_id=acc_id, login=login, school=School(id=school_id, name=school_name))
+
+    @strawberry.field
     def db_status(self, info: strawberry.Info[GraphQLContext, None]) -> DbStatus:
         try:
             with info.context.db_pool.connection() as conn:
                 with conn.cursor() as cur:
-                    cur.execute("SELECT now(), version()")
+                    cur.execute("SELECT now(), version(), current_database(), current_user")
                     row = cur.fetchone()
 
             db_time = str(row[0]) if row and row[0] is not None else ""
             db_version = str(row[1]) if row and row[1] is not None else ""
-            return DbStatus(ok=True, db_time=db_time, db_version=db_version)
+            db_name = str(row[2]) if row and row[2] is not None else ""
+            db_user = str(row[3]) if row and row[3] is not None else ""
+            return DbStatus(ok=True, db_time=db_time, db_version=db_version, database_name=db_name, database_user=db_user)
         except Exception as e:
-            return DbStatus(ok=False, db_time="", db_version="", error=str(e))
+            return DbStatus(ok=False, db_time="", db_version="", database_name="", database_user="", error=str(e))
 
     @strawberry.field
     def professors(self, info: strawberry.Info[GraphQLContext, None]) -> list[Professor]:
