@@ -20,6 +20,7 @@ import type {
   DbSubject,
   Professor,
 } from './components/eduplan/types'
+import { NAV_ITEMS } from './components/eduplan/data'
 
 export default function AppEduPlan() {
   const location = useLocation()
@@ -57,6 +58,15 @@ export default function AppEduPlan() {
     if (p.startsWith('/settings')) return 'settings'
     return 'planning'
   })()
+
+  const navMeta = NAV_ITEMS.find((x) => x.key === activeNav) ?? NAV_ITEMS[0]
+  const pageTitle = navMeta?.label ?? 'EduPlan'
+  const pageIcon = navMeta?.icon ?? '✦'
+
+  useEffect(() => {
+    const school = me?.school?.name ? ` — ${me.school.name}` : ''
+    document.title = `${pageTitle} — EduPlan${school}`
+  }, [pageTitle, me])
 
   const setActiveNav = (key: EduPlanNavKey) => {
     const map: Record<EduPlanNavKey, string> = {
@@ -258,6 +268,8 @@ export default function AppEduPlan() {
       setSidebarOpen={setSidebarOpen}
       me={me}
       onLogout={logout}
+      pageTitle={pageTitle}
+      pageIcon={pageIcon}
       quickClass={quickClassId}
       setQuickClass={setQuickClassId}
       classes={classes}

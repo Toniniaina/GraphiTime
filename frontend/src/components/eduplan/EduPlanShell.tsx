@@ -12,6 +12,8 @@ export function EduPlanShell({
   setSidebarOpen,
   me,
   onLogout,
+  pageTitle,
+  pageIcon,
   quickClass,
   setQuickClass,
   classes,
@@ -24,6 +26,8 @@ export function EduPlanShell({
   setSidebarOpen: (open: boolean) => void
   me?: DbMe | null
   onLogout?: () => void | Promise<void>
+  pageTitle: string
+  pageIcon: string
   quickClass: string
   setQuickClass: (value: string) => void
   classes: DbClass[]
@@ -167,6 +171,12 @@ export function EduPlanShell({
       </aside>
 
       <main style={S.main}>
+        <header style={S.topBar}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: 20, color: '#c8922a', lineHeight: 1 }}>{pageIcon}</div>
+            <div style={S.pageTitle}>{pageTitle}</div>
+          </div>
+        </header>
         {topError ? (
           <div style={{ padding: '10px 32px', color: '#c0392b', fontSize: 13, fontWeight: 700 }}>{topError}</div>
         ) : null}
