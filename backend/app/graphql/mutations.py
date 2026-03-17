@@ -90,26 +90,16 @@ class Mutation:
     def create_professor(
         self, info: strawberry.Info[GraphQLContext, None], input: CreateProfessorInput
     ) -> Professor:
-        token = info.context.request.cookies.get("gt_session", "")
-        me_row = AuthService(AuthRepository(info.context.db_pool)).me_from_session_token(token)
-        if me_row is None:
-            raise RuntimeError("Not authenticated")
-        _acc_id, _login, school_id, _school_name = me_row
         svc = ProfessorService(ProfessorRepository(info.context.db_pool))
-        pid, name = svc.create_professor(school_id, input.name)
+        pid, name = svc.create_professor(input.name)
         return Professor(id=pid, name=name)
 
     @strawberry.mutation
     def apply_generated_schedule(self, info: strawberry.Info[GraphQLContext, None]) -> ApplyScheduleResult:
         try:
-            token = info.context.request.cookies.get("gt_session", "")
-            me_row = AuthService(AuthRepository(info.context.db_pool)).me_from_session_token(token)
-            if me_row is None:
-                raise RuntimeError("Not authenticated")
-            _acc_id, _login, school_id, _school_name = me_row
             svc = SchedulingService(info.context.db_pool)
-            generated = svc.generate_preview(school_id)
-            svc.apply_generated_schedule(school_id, generated)
+            generated = svc.generate_preview()
+            svc.apply_generated_schedule(generated)
             return ApplyScheduleResult(ok=True, count=len(generated))
         except Exception as e:
             return ApplyScheduleResult(ok=False, count=0, error=str(e))

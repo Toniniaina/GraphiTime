@@ -43,31 +43,23 @@ CREATE TABLE auth_sessions (
 
 CREATE TABLE professors (
     id VARCHAR(16) PRIMARY KEY DEFAULT ('PRF' || lpad(nextval('professors_seq')::text, 5, '0')),
-    school_id VARCHAR(16) NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    UNIQUE (school_id, name)
+    name TEXT NOT NULL
 );
 
 CREATE TABLE classes (
     id VARCHAR(16) PRIMARY KEY DEFAULT ('CLS' || lpad(nextval('classes_seq')::text, 5, '0')),
-    school_id VARCHAR(16) NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    UNIQUE (school_id, name)
+    name TEXT NOT NULL UNIQUE
 );
 
 CREATE TABLE subjects (
     id VARCHAR(16) PRIMARY KEY DEFAULT ('SUB' || lpad(nextval('subjects_seq')::text, 5, '0')),
-    school_id VARCHAR(16) NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    UNIQUE (school_id, name)
+    name TEXT NOT NULL UNIQUE
 );
 
 CREATE TABLE rooms (
     id VARCHAR(16) PRIMARY KEY DEFAULT ('ROM' || lpad(nextval('rooms_seq')::text, 5, '0')),
-    school_id VARCHAR(16) NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    capacity INTEGER NOT NULL DEFAULT 0 CHECK (capacity >= 0),
-    UNIQUE (school_id, name)
+    name TEXT NOT NULL UNIQUE,
+    capacity INTEGER NOT NULL DEFAULT 0 CHECK (capacity >= 0)
 );
 
 ALTER TABLE classes
@@ -75,7 +67,6 @@ ALTER TABLE classes
 
 CREATE TABLE courses (
     id VARCHAR(16) PRIMARY KEY DEFAULT ('CRS' || lpad(nextval('courses_seq')::text, 5, '0')),
-    school_id VARCHAR(16) NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
     subject_id VARCHAR(16) NOT NULL REFERENCES subjects(id) ON DELETE RESTRICT,
     class_id VARCHAR(16) NOT NULL REFERENCES classes(id) ON DELETE RESTRICT,
     professor_id VARCHAR(16) NOT NULL REFERENCES professors(id) ON DELETE RESTRICT,
@@ -84,7 +75,6 @@ CREATE TABLE courses (
 
 CREATE TABLE professor_unavailability (
     id VARCHAR(16) PRIMARY KEY DEFAULT ('UNV' || lpad(nextval('professor_unavailability_seq')::text, 5, '0')),
-    school_id VARCHAR(16) NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
     professor_id VARCHAR(16) NOT NULL REFERENCES professors(id) ON DELETE CASCADE,
     day_of_week SMALLINT NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
     start_time TIME NOT NULL,
@@ -94,7 +84,6 @@ CREATE TABLE professor_unavailability (
 
 CREATE TABLE scheduled_sessions (
     id VARCHAR(16) PRIMARY KEY DEFAULT ('SES' || lpad(nextval('scheduled_sessions_seq')::text, 5, '0')),
-    school_id VARCHAR(16) NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
     course_id VARCHAR(16) NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
 
     room_id VARCHAR(16) NOT NULL REFERENCES rooms(id) ON DELETE RESTRICT,
@@ -113,29 +102,18 @@ CREATE TABLE scheduled_sessions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     EXCLUDE USING gist (
-        school_id WITH =,
         professor_id WITH =,
         day_of_week WITH =,
         int4range(start_minute, end_minute, '[)') WITH &&
     ),
     EXCLUDE USING gist (
-        school_id WITH =,
         class_id WITH =,
         day_of_week WITH =,
         int4range(start_minute, end_minute, '[)') WITH &&
     ),
     EXCLUDE USING gist (
-        school_id WITH =,
         room_id WITH =,
         day_of_week WITH =,
         int4range(start_minute, end_minute, '[)') WITH &&
     )
 );
-
-CREATE INDEX IF NOT EXISTS professors_school_id_idx ON professors(school_id);
-CREATE INDEX IF NOT EXISTS classes_school_id_idx ON classes(school_id);
-CREATE INDEX IF NOT EXISTS subjects_school_id_idx ON subjects(school_id);
-CREATE INDEX IF NOT EXISTS rooms_school_id_idx ON rooms(school_id);
-CREATE INDEX IF NOT EXISTS courses_school_id_idx ON courses(school_id);
-CREATE INDEX IF NOT EXISTS professor_unavailability_school_id_idx ON professor_unavailability(school_id);
-CREATE INDEX IF NOT EXISTS scheduled_sessions_school_id_idx ON scheduled_sessions(school_id);
