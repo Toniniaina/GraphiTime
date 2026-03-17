@@ -7,34 +7,25 @@ class SchoolRepository:
     def __init__(self, pool: ConnectionPool) -> None:
         self._pool = pool
 
-    def list_classes(self, school_id: str) -> list[tuple[str, str]]:
+    def list_classes(self) -> list[tuple[str, str]]:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT id, name FROM classes WHERE school_id=%s ORDER BY name",
-                    (school_id,),
-                )
+                cur.execute("SELECT id, name FROM classes ORDER BY name")
                 return [(str(r[0]), str(r[1])) for r in (cur.fetchall() or [])]
 
-    def list_rooms(self, school_id: str) -> list[tuple[str, str, int]]:
+    def list_rooms(self) -> list[tuple[str, str, int]]:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT id, name, capacity FROM rooms WHERE school_id=%s ORDER BY name",
-                    (school_id,),
-                )
+                cur.execute("SELECT id, name, capacity FROM rooms ORDER BY name")
                 return [(str(r[0]), str(r[1]), int(r[2])) for r in (cur.fetchall() or [])]
 
-    def list_subjects(self, school_id: str) -> list[tuple[str, str]]:
+    def list_subjects(self) -> list[tuple[str, str]]:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT id, name FROM subjects WHERE school_id=%s ORDER BY name",
-                    (school_id,),
-                )
+                cur.execute("SELECT id, name FROM subjects ORDER BY name")
                 return [(str(r[0]), str(r[1])) for r in (cur.fetchall() or [])]
 
-    def list_courses(self, school_id: str) -> list[tuple[str, float, str, str, str, str, str, str]]:
+    def list_courses(self) -> list[tuple[str, float, str, str, str, str, str, str]]:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -52,10 +43,8 @@ class SchoolRepository:
                     JOIN subjects s ON s.id = crs.subject_id
                     JOIN classes c ON c.id = crs.class_id
                     JOIN professors p ON p.id = crs.professor_id
-                    WHERE crs.school_id = %s
                     ORDER BY c.name, s.name
-                    """,
-                    (school_id,),
+                    """
                 )
                 return [
                     (
@@ -71,7 +60,7 @@ class SchoolRepository:
                     for r in (cur.fetchall() or [])
                 ]
 
-    def list_professor_unavailability(self, school_id: str) -> list[tuple[str, str, str, int, str, str]]:
+    def list_professor_unavailability(self) -> list[tuple[str, str, str, int, str, str]]:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -85,10 +74,8 @@ class SchoolRepository:
                       u.end_time
                     FROM professor_unavailability u
                     JOIN professors p ON p.id = u.professor_id
-                    WHERE u.school_id = %s
                     ORDER BY p.name, u.day_of_week, u.start_time
-                    """,
-                    (school_id,),
+                    """
                 )
                 return [
                     (
@@ -104,7 +91,6 @@ class SchoolRepository:
 
     def list_scheduled_sessions(
         self,
-        school_id: str,
     ) -> list[tuple[str, int, int, int, str, str, str, int, str, float, str, str, str, str, str, str]]:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
@@ -135,10 +121,8 @@ class SchoolRepository:
                     JOIN subjects s ON s.id = crs.subject_id
                     JOIN classes c ON c.id = crs.class_id
                     JOIN professors p ON p.id = crs.professor_id
-                    WHERE ses.school_id = %s
                     ORDER BY ses.day_of_week, ses.start_minute, c.name
-                    """,
-                    (school_id,),
+                    """
                 )
                 return [
                     (

@@ -220,7 +220,7 @@ export default function AppEduPlan() {
 
   async function logout() {
     try {
-      await graphql<{ logout: boolean }>('mutation { logout }', undefined, 8000)
+      await graphql<{ logout: { ok: boolean; error?: string | null } }>('mutation { logout { ok error } }', undefined, 8000)
     } catch (e) {
       setPingError(e instanceof Error ? e.message : String(e))
     } finally {

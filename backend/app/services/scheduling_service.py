@@ -75,7 +75,7 @@ class SchedulingService:
     def __init__(self, pool: ConnectionPool) -> None:
         self._pool = pool
 
-    def _list_courses(self, school_id: str) -> list[CourseRow]:
+    def _list_courses(self) -> list[CourseRow]:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -93,10 +93,8 @@ class SchedulingService:
                     JOIN subjects s ON s.id = crs.subject_id
                     JOIN classes c ON c.id = crs.class_id
                     JOIN professors p ON p.id = crs.professor_id
-                    WHERE crs.school_id = %s
                     ORDER BY c.name, s.name
-                    """,
-                    (school_id,),
+                    """
                 )
                 rows = cur.fetchall() or []
 
@@ -116,17 +114,14 @@ class SchedulingService:
             )
         return out
 
-    def _list_rooms(self, school_id: str) -> list[RoomRow]:
+    def _list_rooms(self) -> list[RoomRow]:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT id, name, capacity FROM rooms WHERE school_id=%s ORDER BY name",
-                    (school_id,),
-                )
+                cur.execute("SELECT id, name, capacity FROM rooms ORDER BY name")
                 rows = cur.fetchall() or []
         return [RoomRow(id=str(i), name=str(n), capacity=int(c)) for (i, n, c) in rows]
 
-    def _list_class_home_rooms(self, school_id: str) -> dict[str, str]:
+    def _list_class_home_rooms(self) -> dict[str, str]:
         """Return mapping class_id -> room_id for the class main room."""
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
@@ -134,10 +129,8 @@ class SchedulingService:
                     """
                     SELECT c.id, c.home_room_id
                     FROM classes c
-                    WHERE c.school_id = %s
                     ORDER BY c.name
-                    """,
-                    (school_id,),
+                    """
                 )
                 rows = cur.fetchall() or []
 
@@ -148,7 +141,7 @@ class SchedulingService:
             out[str(cid)] = str(rid)
         return out
 
-    def _list_unavailability(self, school_id: str) -> list[UnavailabilityRow]:
+    def _list_unavailability(self) -> list[UnavailabilityRow]:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -162,10 +155,8 @@ class SchedulingService:
                       u.end_time
                     FROM professor_unavailability u
                     JOIN professors p ON p.id = u.professor_id
-                    WHERE u.school_id = %s
                     ORDER BY p.name, u.day_of_week, u.start_time
-                    """,
-                    (school_id,),
+                    """
                 )
                 rows = cur.fetchall() or []
 
@@ -223,14 +214,14 @@ class SchedulingService:
                 return False
         return True
 
-    def generate_preview(self, school_id: str) -> list[GeneratedSessionRow]:
-        courses = self._list_courses(school_id)
-        rooms = self._list_rooms(school_id)
-        unv = self._list_unavailability(school_id)
+    def generate_preview(self) -> list[GeneratedSessionRow]:
+        courses = self._list_courses()
+        rooms = self._list_rooms()
+        unv = self._list_unavailability()
         if not rooms:
             raise RuntimeError("No rooms found")
 
-        class_home_room_id = self._list_class_home_rooms(school_id)
+        class_home_room_id = self._list_class_home_rooms()
 
         # Quick feasibility check (approx): total teaching hours per professor must fit in the week's capacity.
         # Weekly capacity per professor (by our allowed windows): 5 days * (6h morning + 4h afternoon) = 50h.
@@ -487,21 +478,20 @@ class SchedulingService:
 
         return preview
 
-    def apply_generated_schedule(self, school_id: str, generated: Iterable[GeneratedSessionRow]) -> None:
+    def apply_generated_schedule(self, generated: Iterable[GeneratedSessionRow]) -> None:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
-                cur.execute("DELETE FROM scheduled_sessions WHERE school_id=%s", (school_id,))
+                cur.execute("TRUNCATE TABLE scheduled_sessions RESTART IDENTITY")
                 for ses in generated:
                     cur.execute(
                         """
                         INSERT INTO scheduled_sessions (
-                          school_id, course_id, room_id, professor_id, class_id, subject_id,
+                          course_id, room_id, professor_id, class_id, subject_id,
                           day_of_week, start_minute, end_minute
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
                         """,
                         (
-                            school_id,
                             ses.course.id,
                             ses.room.id,
                             ses.course.professor_id,
