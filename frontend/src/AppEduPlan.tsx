@@ -41,6 +41,8 @@ export default function AppEduPlan() {
   const [profError, setProfError] = useState<string>('')
 
   const [classes, setClasses] = useState<DbClass[]>([])
+  const [newClassName, setNewClassName] = useState<string>('')
+  const [classError, setClassError] = useState<string>('')
   const [rooms, setRooms] = useState<DbRoom[]>([])
   const [subjects, setSubjects] = useState<DbSubject[]>([])
   const [courses, setCourses] = useState<DbCourse[]>([])
@@ -81,6 +83,65 @@ export default function AppEduPlan() {
     navigate(map[key])
   }
 
+  async function createClass() {
+    setClassError('')
+    try {
+      const name = newClassName.trim()
+      if (!name) return
+
+      await graphql<{ createClass: { id: string; name: string; homeRoomId?: string | null } }>(
+        'mutation ($input: CreateClassInput!) { createClass(input: $input) { id name homeRoomId } }',
+        { input: { name } },
+      )
+
+      setNewClassName('')
+      await refreshAll()
+    } catch (e) {
+      setClassError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function renameClass(id: string, name: string) {
+    setClassError('')
+    try {
+      const next = name.trim()
+      if (!next) return
+
+      await graphql<{ renameClass: { id: string; name: string; homeRoomId?: string | null } }>(
+        'mutation ($input: RenameClassInput!) { renameClass(input: $input) { id name homeRoomId } }',
+        { input: { id, name: next } },
+      )
+      await refreshAll()
+    } catch (e) {
+      setClassError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function deleteClass(id: string) {
+    setClassError('')
+    try {
+      await graphql<{ deleteClass: boolean }>('mutation ($input: DeleteClassInput!) { deleteClass(input: $input) }', {
+        input: { id },
+      })
+      await refreshAll()
+    } catch (e) {
+      setClassError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function setClassHomeRoom(classId: string, roomId: string | null) {
+    setClassError('')
+    try {
+      await graphql<{ setClassHomeRoom: { id: string; name: string; homeRoomId?: string | null } }>(
+        'mutation ($input: SetClassHomeRoomInput!) { setClassHomeRoom(input: $input) { id name homeRoomId } }',
+        { input: { classId, roomId } },
+      )
+      await refreshAll()
+    } catch (e) {
+      setClassError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   async function graphql<T>(query: string, variables?: Record<string, unknown>, timeoutMs = 8000): Promise<T> {
     const ctrl = new AbortController()
     const t = window.setTimeout(() => ctrl.abort(), timeoutMs)
@@ -113,7 +174,7 @@ export default function AppEduPlan() {
         error?: string | null
       }
       professors: Array<{ id: string; name: string }>
-      classes: Array<{ id: string; name: string }>
+      classes: Array<{ id: string; name: string; homeRoomId?: string | null }>
       rooms: Array<{ id: string; name: string; capacity: number }>
       subjects: Array<{ id: string; name: string }>
       courses: Array<{
@@ -146,7 +207,7 @@ export default function AppEduPlan() {
         professor: { id: string; name: string }
       }>
     }>(
-      'query { ping dbStatus { ok dbTime dbVersion databaseName databaseUser error } professors { id name } classes { id name } rooms { id name capacity } subjects { id name } courses { id requiredHoursPerWeek subject { id name } schoolClass { id name } professor { id name } } scheduledSessions { id dayOfWeek startMinute endMinute createdAt room { id name capacity } course { id requiredHoursPerWeek subject { id name } schoolClass { id name } professor { id name } } } professorUnavailability { id dayOfWeek startTime endTime professor { id name } } }',
+      'query { ping dbStatus { ok dbTime dbVersion databaseName databaseUser error } professors { id name } classes { id name homeRoomId } rooms { id name capacity } subjects { id name } courses { id requiredHoursPerWeek subject { id name } schoolClass { id name } professor { id name } } scheduledSessions { id dayOfWeek startMinute endMinute createdAt room { id name capacity } course { id requiredHoursPerWeek subject { id name } schoolClass { id name } professor { id name } } } professorUnavailability { id dayOfWeek startTime endTime professor { id name } } }',
     )
 
     setPing(data.ping)
@@ -306,7 +367,21 @@ export default function AppEduPlan() {
         />
         <Route
           path="/classes"
-          element={<ClassesPage classes={classes} courses={courses} scheduledSessions={scheduledSessions} />}
+          element={
+            <ClassesPage
+              classes={classes}
+              rooms={rooms}
+              courses={courses}
+              scheduledSessions={scheduledSessions}
+              newClassName={newClassName}
+              setNewClassName={setNewClassName}
+              onCreateClass={createClass}
+              onRenameClass={renameClass}
+              onDeleteClass={deleteClass}
+              onSetHomeRoom={setClassHomeRoom}
+              classError={classError}
+            />
+          }
         />
         <Route
           path="/teachers"

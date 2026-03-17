@@ -7,20 +7,38 @@ class SchoolService:
     def __init__(self, repo: SchoolRepository) -> None:
         self._repo = repo
 
-    def list_classes(self):
-        return self._repo.list_classes()
+    def list_classes(self, school_id: str):
+        return self._repo.list_classes(school_id)
 
-    def list_rooms(self):
-        return self._repo.list_rooms()
+    def create_class(self, school_id: str, name: str):
+        name = name.strip()
+        if not name:
+            raise ValueError("Class name is required")
+        return self._repo.create_class(school_id, name)
 
-    def list_subjects(self):
-        return self._repo.list_subjects()
+    def rename_class(self, school_id: str, class_id: str, new_name: str):
+        new_name = new_name.strip()
+        if not new_name:
+            raise ValueError("Class name is required")
+        return self._repo.rename_class(school_id, class_id, new_name)
 
-    def list_courses(self):
-        return self._repo.list_courses()
+    def delete_class(self, school_id: str, class_id: str) -> bool:
+        return self._repo.delete_class(school_id, class_id)
 
-    def list_professor_unavailability(self):
-        return self._repo.list_professor_unavailability()
+    def set_class_home_room(self, school_id: str, class_id: str, room_id: str | None):
+        return self._repo.set_class_home_room(school_id, class_id, room_id)
 
-    def list_scheduled_sessions(self):
-        return self._repo.list_scheduled_sessions()
+    def list_rooms(self, school_id: str):
+        return self._repo.list_rooms(school_id)
+
+    def list_subjects(self, school_id: str):
+        return self._repo.list_subjects(school_id)
+
+    def list_courses(self, school_id: str):
+        return self._repo.list_courses(school_id)
+
+    def list_professor_unavailability(self, school_id: str):
+        return self._repo.list_professor_unavailability(school_id)
+
+    def list_scheduled_sessions(self, school_id: str):
+        return self._repo.list_scheduled_sessions(school_id)
