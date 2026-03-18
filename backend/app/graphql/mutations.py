@@ -13,15 +13,24 @@ from .types import (
     AuthPayload,
     CreateClassInput,
     CreateProfessorInput,
+    CreateProfessorUnavailabilityInput,
+    CreateSubjectInput,
+    DeleteProfessorInput,
     DeleteClassInput,
+    DeleteProfessorUnavailabilityInput,
+    DeleteSubjectInput,
     LoginInput,
     Me,
     Professor,
+    ProfessorUnavailability,
     RenameClassInput,
+    RenameProfessorInput,
+    RenameSubjectInput,
     RegisterSchoolInput,
     School,
     SchoolClass,
     SetClassHomeRoomInput,
+    Subject,
 )
 
 
@@ -112,6 +121,48 @@ class Mutation:
         return Professor(id=pid, name=name)
 
     @strawberry.mutation
+    def rename_professor(
+        self, info: strawberry.Info[GraphQLContext, None], input: RenameProfessorInput
+    ) -> Professor:
+        school_id = _require_school_id(info)
+        svc = ProfessorService(ProfessorRepository(info.context.db_pool))
+        pid, name = svc.rename_professor(school_id, input.id, input.name)
+        return Professor(id=pid, name=name)
+
+    @strawberry.mutation
+    def delete_professor(
+        self, info: strawberry.Info[GraphQLContext, None], input: DeleteProfessorInput
+    ) -> bool:
+        school_id = _require_school_id(info)
+        svc = ProfessorService(ProfessorRepository(info.context.db_pool))
+        return svc.delete_professor(school_id, input.id)
+
+    @strawberry.mutation
+    def create_professor_unavailability(
+        self, info: strawberry.Info[GraphQLContext, None], input: CreateProfessorUnavailabilityInput
+    ) -> ProfessorUnavailability:
+        school_id = _require_school_id(info)
+        svc = ProfessorService(ProfessorRepository(info.context.db_pool))
+        uid, pid, pname, dow, start, end = svc.create_unavailability(
+            school_id, input.professor_id, input.day_of_week, input.start_time, input.end_time
+        )
+        return ProfessorUnavailability(
+            id=uid,
+            professor=Professor(id=pid, name=pname),
+            day_of_week=dow,
+            start_time=start,
+            end_time=end,
+        )
+
+    @strawberry.mutation
+    def delete_professor_unavailability(
+        self, info: strawberry.Info[GraphQLContext, None], input: DeleteProfessorUnavailabilityInput
+    ) -> bool:
+        school_id = _require_school_id(info)
+        svc = ProfessorService(ProfessorRepository(info.context.db_pool))
+        return svc.delete_unavailability(school_id, input.id)
+
+    @strawberry.mutation
     def create_class(self, info: strawberry.Info[GraphQLContext, None], input: CreateClassInput) -> SchoolClass:
         school_id = _require_school_id(info)
         svc = SchoolService(SchoolRepository(info.context.db_pool))
@@ -139,6 +190,26 @@ class Mutation:
         svc = SchoolService(SchoolRepository(info.context.db_pool))
         cid, name, hr = svc.set_class_home_room(school_id, input.class_id, input.room_id)
         return SchoolClass(id=cid, name=name, home_room_id=hr)
+
+    @strawberry.mutation
+    def create_subject(self, info: strawberry.Info[GraphQLContext, None], input: CreateSubjectInput) -> Subject:
+        school_id = _require_school_id(info)
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
+        sid, name = svc.create_subject(school_id, input.name)
+        return Subject(id=sid, name=name)
+
+    @strawberry.mutation
+    def rename_subject(self, info: strawberry.Info[GraphQLContext, None], input: RenameSubjectInput) -> Subject:
+        school_id = _require_school_id(info)
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
+        sid, name = svc.rename_subject(school_id, input.id, input.name)
+        return Subject(id=sid, name=name)
+
+    @strawberry.mutation
+    def delete_subject(self, info: strawberry.Info[GraphQLContext, None], input: DeleteSubjectInput) -> bool:
+        school_id = _require_school_id(info)
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
+        return svc.delete_subject(school_id, input.id)
 
     @strawberry.mutation
     def apply_generated_schedule(self, info: strawberry.Info[GraphQLContext, None]) -> ApplyScheduleResult:

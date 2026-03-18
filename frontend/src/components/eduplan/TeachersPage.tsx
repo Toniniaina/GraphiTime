@@ -13,6 +13,10 @@ export function TeachersPage({
   newProfessorName,
   setNewProfessorName,
   onCreateProfessor,
+  onRenameProfessor,
+  onDeleteProfessor,
+  onCreateProfessorUnavailability,
+  onDeleteProfessorUnavailability,
   profError,
   ping,
   dbOk,
@@ -23,6 +27,10 @@ export function TeachersPage({
   newProfessorName: string
   setNewProfessorName: (v: string) => void
   onCreateProfessor: () => void
+  onRenameProfessor: (id: string, name: string) => void | Promise<void>
+  onDeleteProfessor: (id: string) => void | Promise<void>
+  onCreateProfessorUnavailability: (professorId: string, dayOfWeek: number, startTime: string, endTime: string) => void | Promise<void>
+  onDeleteProfessorUnavailability: (id: string) => void | Promise<void>
   profError: string
   ping: string
   dbOk: boolean | null
@@ -32,6 +40,16 @@ export function TeachersPage({
   const [selectedWeek, setSelectedWeek] = useState(0)
   const [selectedProfessorId, setSelectedProfessorId] = useState('')
   const [hoveredBlock, setHoveredBlock] = useState<number | null>(null)
+
+  const [modal, setModal] = useState<
+    | { type: 'edit'; professorId: string; initialName: string }
+    | { type: 'delete'; professorId: string; name: string }
+    | null
+  >(null)
+  const [editNameValue, setEditNameValue] = useState('')
+  const [newUnDay, setNewUnDay] = useState<number>(1)
+  const [newUnStart, setNewUnStart] = useState<string>('08:00')
+  const [newUnEnd, setNewUnEnd] = useState<string>('10:00')
 
   useEffect(() => {
     if (!professors.length) return
@@ -116,6 +134,19 @@ export function TeachersPage({
         endMinute: timeToMinute(u.endTime),
       }))
   }, [professorUnavailability, selectedProfessorId])
+
+  const modalUnavailability = useMemo(() => {
+    if (!modal || modal.type !== 'edit') return []
+    return professorUnavailability
+      .filter((u) => u.professor.id === modal.professorId)
+      .slice()
+      .sort((a, b) => (a.dayOfWeek - b.dayOfWeek) || a.startTime.localeCompare(b.startTime))
+  }, [modal, professorUnavailability])
+
+  const selectedProfessor = useMemo(() => {
+    if (!selectedProfessorId) return null
+    return professors.find((p) => p.id === selectedProfessorId) ?? null
+  }, [professors, selectedProfessorId])
 
   return (
     <div style={S.pageWrap}>
@@ -217,6 +248,259 @@ export function TeachersPage({
         <div style={{ margin: '0 32px 12px', color: '#c0392b', fontSize: 13, fontWeight: 600 }}>{profError}</div>
       ) : null}
 
+      {modal ? (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(13,31,53,0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+            zIndex: 50,
+          }}
+          onClick={() => setModal(null)}
+        >
+          <div
+            style={{
+              width: 'min(720px, 94vw)',
+              background: 'white',
+              borderRadius: 16,
+              border: '1px solid rgba(13,31,53,0.12)',
+              boxShadow: '0 18px 60px rgba(0,0,0,0.25)',
+              overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: '16px 18px', borderBottom: '1px solid rgba(13,31,53,0.08)' }}>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#0d1f35' }}>
+                {modal.type === 'edit' ? 'Modifier professeur' : 'Supprimer professeur'}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(13,31,53,0.55)', fontWeight: 700 }}>
+                {modal.type === 'edit' ? modal.initialName : modal.name}
+              </div>
+            </div>
+
+            <div style={{ padding: 18 }}>
+              {modal.type === 'edit' ? (
+                <div style={{ display: 'grid', gap: 16 }}>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'rgba(13,31,53,0.55)' }}>Nom</div>
+                    <input
+                      value={editNameValue}
+                      onChange={(e) => setEditNameValue(e.target.value)}
+                      style={{ ...S.searchInput, width: '100%', padding: '10px 12px' }}
+                      autoFocus
+                    />
+                  </div>
+
+                  <div style={{ borderTop: '1px solid rgba(13,31,53,0.08)', paddingTop: 14 }}>
+                    <div style={{ fontSize: 12, fontWeight: 900, color: '#0d1f35', marginBottom: 10 }}>
+                      Indisponibilités
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        <div style={{ fontSize: 11, fontWeight: 900, color: 'rgba(13,31,53,0.55)' }}>Jour</div>
+                        <select
+                          value={newUnDay}
+                          onChange={(e) => setNewUnDay(Number(e.target.value))}
+                          style={{ ...S.classSelect, minWidth: 160 }}
+                        >
+                          <option value={1}>Lundi</option>
+                          <option value={2}>Mardi</option>
+                          <option value={3}>Mercredi</option>
+                          <option value={4}>Jeudi</option>
+                          <option value={5}>Vendredi</option>
+                          <option value={6}>Samedi</option>
+                          <option value={7}>Dimanche</option>
+                        </select>
+                      </div>
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        <div style={{ fontSize: 11, fontWeight: 900, color: 'rgba(13,31,53,0.55)' }}>Début</div>
+                        <input
+                          value={newUnStart}
+                          onChange={(e) => setNewUnStart(e.target.value)}
+                          placeholder="08:00"
+                          style={{ ...S.searchInput, width: 120, paddingLeft: 12 }}
+                        />
+                      </div>
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        <div style={{ fontSize: 11, fontWeight: 900, color: 'rgba(13,31,53,0.55)' }}>Fin</div>
+                        <input
+                          value={newUnEnd}
+                          onChange={(e) => setNewUnEnd(e.target.value)}
+                          placeholder="10:00"
+                          style={{ ...S.searchInput, width: 120, paddingLeft: 12 }}
+                        />
+                      </div>
+                      <button
+                        style={S.addBtn}
+                        onClick={() => {
+                          void onCreateProfessorUnavailability(modal.professorId, newUnDay, newUnStart, newUnEnd)
+                        }}
+                      >
+                        ＋ Ajouter
+                      </button>
+                    </div>
+
+                    <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
+                      {modalUnavailability.length ? (
+                        modalUnavailability.map((u) => (
+                          <div
+                            key={u.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 10,
+                              padding: '10px 12px',
+                              border: '1px solid rgba(13,31,53,0.10)',
+                              borderRadius: 12,
+                              background: 'rgba(13,31,53,0.02)',
+                            }}
+                          >
+                            <div style={{ fontSize: 12, fontWeight: 900, color: '#0d1f35' }}>
+                              {(u.dayOfWeek === 1 && 'Lundi') ||
+                                (u.dayOfWeek === 2 && 'Mardi') ||
+                                (u.dayOfWeek === 3 && 'Mercredi') ||
+                                (u.dayOfWeek === 4 && 'Jeudi') ||
+                                (u.dayOfWeek === 5 && 'Vendredi') ||
+                                (u.dayOfWeek === 6 && 'Samedi') ||
+                                (u.dayOfWeek === 7 && 'Dimanche') ||
+                                `Jour ${u.dayOfWeek}`}
+                              <span style={{ color: 'rgba(13,31,53,0.55)', fontWeight: 900 }}> · </span>
+                              <span style={{ color: 'rgba(13,31,53,0.65)', fontWeight: 900 }}>
+                                {u.startTime} → {u.endTime}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => void onDeleteProfessorUnavailability(u.id)}
+                              style={{
+                                background: 'white',
+                                border: '1px solid rgba(192,57,43,0.35)',
+                                borderRadius: 10,
+                                padding: '8px 10px',
+                                fontSize: 12,
+                                fontWeight: 900,
+                                cursor: 'pointer',
+                                color: '#c0392b',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title="Supprimer"
+                            >
+                              Supprimer
+                            </button>
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ fontSize: 12, fontWeight: 800, color: 'rgba(13,31,53,0.45)' }}>
+                          Aucune indisponibilité.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{
+                    borderTop: '1px solid rgba(13,31,53,0.08)',
+                    paddingTop: 14,
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                  }}>
+                    <button
+                      onClick={() => setModal({ type: 'delete', professorId: modal.professorId, name: modal.initialName })}
+                      style={{
+                        background: 'white',
+                        border: '1px solid rgba(192,57,43,0.35)',
+                        borderRadius: 10,
+                        padding: '8px 10px',
+                        fontSize: 12,
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        color: '#c0392b',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Supprimer le professeur
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: 10 }}>
+                  <div style={{ fontSize: 13, color: '#0d1f35', fontWeight: 800 }}>
+                    Cette action est irréversible.
+                  </div>
+                  <div style={{ fontSize: 12, color: 'rgba(13,31,53,0.55)', fontWeight: 700 }}>
+                    Si le professeur est lié à des cours/séances ou possède des indisponibilités, la suppression sera refusée.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 10,
+                padding: '12px 18px 16px',
+                borderTop: '1px solid rgba(13,31,53,0.08)',
+              }}
+            >
+              <button
+                style={{
+                  background: 'transparent',
+                  border: '1px solid rgba(13,31,53,0.16)',
+                  color: 'rgba(13,31,53,0.75)',
+                  borderRadius: 10,
+                  padding: '9px 14px',
+                  fontSize: 12,
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                }}
+                onClick={() => setModal(null)}
+              >
+                Annuler
+              </button>
+
+              {modal.type === 'edit' ? (
+                <button
+                  style={S.addBtn}
+                  onClick={() => {
+                    const nextName = editNameValue.trim()
+                    if (nextName && nextName !== modal.initialName) {
+                      void onRenameProfessor(modal.professorId, nextName)
+                    }
+                    setModal(null)
+                  }}
+                >
+                  Enregistrer
+                </button>
+              ) : (
+                <button
+                  style={{
+                    background: '#c0392b',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 10,
+                    padding: '9px 14px',
+                    fontSize: 12,
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    void onDeleteProfessor(modal.professorId)
+                    setModal(null)
+                  }}
+                >
+                  Supprimer
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {view === 'planning' ? (
         <>
           <div style={{ display: 'flex', gap: 12, padding: '0 32px 12px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -240,6 +524,26 @@ export function TeachersPage({
                 </option>
               ))}
             </select>
+            {selectedProfessor ? (
+              <button
+                onClick={() => {
+                  setEditNameValue(selectedProfessor.name)
+                  setModal({ type: 'edit', professorId: selectedProfessor.id, initialName: selectedProfessor.name })
+                }}
+                style={{
+                  background: 'white',
+                  border: '1px solid rgba(13,31,53,0.12)',
+                  borderRadius: 10,
+                  padding: '8px 10px',
+                  fontSize: 12,
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  color: '#0d1f35',
+                }}
+              >
+                Modifier
+              </button>
+            ) : null}
             <div style={{ fontSize: 12, color: 'rgba(13,31,53,0.55)', fontWeight: 700 }}>
               Cours: couleur matière · Indispo: gris
             </div>
@@ -346,7 +650,7 @@ export function TeachersPage({
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: '220px 1fr',
+                gridTemplateColumns: '220px 1fr 160px 120px',
                 gap: 12,
                 padding: '14px 16px',
                 borderBottom: '1px solid rgba(13,31,53,0.08)',
@@ -358,6 +662,8 @@ export function TeachersPage({
             >
               <div>ID</div>
               <div>Nom</div>
+              <div>Indispo</div>
+              <div style={{ textAlign: 'right' }}>Actions</div>
             </div>
             {filtered.length ? (
               filtered.map((p) => (
@@ -365,16 +671,40 @@ export function TeachersPage({
                   key={p.id}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '220px 1fr',
+                    gridTemplateColumns: '220px 1fr 160px 120px',
                     gap: 12,
                     padding: '14px 16px',
                     borderBottom: '1px solid rgba(13,31,53,0.06)',
                     fontSize: 13,
                     color: '#0d1f35',
+                    alignItems: 'center',
                   }}
                 >
                   <div style={{ fontFamily: 'monospace', color: 'rgba(13,31,53,0.7)' }}>{p.id}</div>
                   <div style={{ fontWeight: 700 }}>{p.name}</div>
+                  <div style={{ color: 'rgba(13,31,53,0.55)', fontWeight: 900 }}>
+                    {professorUnavailability.filter((u) => u.professor.id === p.id).length || '—'}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={() => {
+                        setEditNameValue(p.name)
+                        setModal({ type: 'edit', professorId: p.id, initialName: p.name })
+                      }}
+                      style={{
+                        background: 'white',
+                        border: '1px solid rgba(13,31,53,0.12)',
+                        borderRadius: 10,
+                        padding: '8px 10px',
+                        fontSize: 12,
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        color: '#0d1f35',
+                      }}
+                    >
+                      Modifier
+                    </button>
+                  </div>
                 </div>
               ))
             ) : (

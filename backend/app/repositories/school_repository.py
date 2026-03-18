@@ -7,13 +7,20 @@ class SchoolRepository:
     def __init__(self, pool: ConnectionPool) -> None:
         self._pool = pool
 
-    def list_classes(self, school_id: str) -> list[tuple[str, str, str | None]]:
+    def list_classes(self, school_id: str, query: str | None = None) -> list[tuple[str, str, str | None]]:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT id, name, home_room_id FROM classes WHERE school_id=%s ORDER BY name",
-                    (school_id,),
-                )
+                q = (query or "").strip()
+                if q:
+                    cur.execute(
+                        "SELECT id, name, home_room_id FROM classes WHERE school_id=%s AND name ILIKE %s ORDER BY name",
+                        (school_id, f"%{q}%"),
+                    )
+                else:
+                    cur.execute(
+                        "SELECT id, name, home_room_id FROM classes WHERE school_id=%s ORDER BY name",
+                        (school_id,),
+                    )
                 return [(str(r[0]), str(r[1]), str(r[2]) if r[2] is not None else None) for r in (cur.fetchall() or [])]
 
     def create_class(self, school_id: str, name: str) -> tuple[str, str, str | None]:
@@ -104,6 +111,64 @@ class SchoolRepository:
                     (school_id,),
                 )
                 return [(str(r[0]), str(r[1])) for r in (cur.fetchall() or [])]
+
+    def create_subject(self, school_id: str, name: str) -> tuple[str, str]:
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO subjects (school_id, name) VALUES (%s, %s) RETURNING id, name",
+                    (school_id, name),
+                )
+                row = cur.fetchone()
+            conn.commit()
+
+        if row is None:
+            raise RuntimeError("Failed to insert subject")
+        return (str(row[0]), str(row[1]))
+
+    def rename_subject(self, school_id: str, subject_id: str, new_name: str) -> tuple[str, str]:
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE subjects
+                    SET name=%s
+                    WHERE id=%s AND school_id=%s
+                    RETURNING id, name
+                    """,
+                    (new_name, subject_id, school_id),
+                )
+                row = cur.fetchone()
+            conn.commit()
+
+        if row is None:
+            raise RuntimeError("Subject not found")
+        return (str(row[0]), str(row[1]))
+
+    def delete_subject(self, school_id: str, subject_id: str) -> bool:
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM subjects WHERE id=%s AND school_id=%s",
+                    (subject_id, school_id),
+                )
+                if cur.fetchone() is None:
+                    return False
+
+                cur.execute(
+                    "SELECT 1 FROM courses WHERE school_id=%s AND subject_id=%s LIMIT 1",
+                    (school_id, subject_id),
+                )
+                if cur.fetchone() is not None:
+                    raise RuntimeError("Cannot delete subject: used by courses")
+
+                cur.execute(
+                    "DELETE FROM subjects WHERE id=%s AND school_id=%s",
+                    (subject_id, school_id),
+                )
+                deleted = cur.rowcount or 0
+            conn.commit()
+        return deleted > 0
 
     def list_courses(self, school_id: str) -> list[tuple[str, float, str, str, str, str, str, str]]:
         with self._pool.connection() as conn:

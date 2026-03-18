@@ -878,7 +878,7 @@ export default function App() {
         <div style={S.sidebarHeader}>
           <div style={S.logoMark}>
             <span style={S.logoIcon}>✦</span>
-            {sidebarOpen ? <span style={S.logoText}>EduPlan</span> : null}
+            {sidebarOpen ? <span style={S.logoText}>GraphiTime</span> : null}
           </div>
           <button style={S.toggleBtn} onClick={() => setSidebarOpen(!sidebarOpen)}>
             {sidebarOpen ? '‹' : '›'}
