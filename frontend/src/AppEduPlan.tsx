@@ -40,9 +40,13 @@ export default function AppEduPlan() {
   const [newProfessorName, setNewProfessorName] = useState<string>('')
   const [profError, setProfError] = useState<string>('')
 
-  const [classes, setClasses] = useState<DbClass[]>([])
   const [newClassName, setNewClassName] = useState<string>('')
   const [classError, setClassError] = useState<string>('')
+
+  const [newSubjectName, setNewSubjectName] = useState<string>('')
+  const [subjectError, setSubjectError] = useState<string>('')
+
+  const [classes, setClasses] = useState<DbClass[]>([])
   const [rooms, setRooms] = useState<DbRoom[]>([])
   const [subjects, setSubjects] = useState<DbSubject[]>([])
   const [courses, setCourses] = useState<DbCourse[]>([])
@@ -62,12 +66,12 @@ export default function AppEduPlan() {
   })()
 
   const navMeta = NAV_ITEMS.find((x) => x.key === activeNav) ?? NAV_ITEMS[0]
-  const pageTitle = navMeta?.label ?? 'EduPlan'
+  const pageTitle = navMeta?.label ?? 'GraphiTime'
   const pageIcon = navMeta?.icon ?? '✦'
 
   useEffect(() => {
     const school = me?.school?.name ? ` — ${me.school.name}` : ''
-    document.title = `${pageTitle} — EduPlan${school}`
+    document.title = `${pageTitle} — GraphiTime${school}`
   }, [pageTitle, me])
 
   const setActiveNav = (key: EduPlanNavKey) => {
@@ -81,6 +85,127 @@ export default function AppEduPlan() {
       settings: '/settings',
     }
     navigate(map[key])
+  }
+
+  async function createProfessor() {
+    setProfError('')
+    try {
+      const name = newProfessorName.trim()
+      if (!name) return
+
+      await graphql<{ createProfessor: { id: string; name: string } }>(
+        'mutation ($input: CreateProfessorInput!) { createProfessor(input: $input) { id name } }',
+        { input: { name } },
+      )
+
+      setNewProfessorName('')
+      await refreshAll()
+    } catch (e) {
+      setProfError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function createSubject() {
+    setSubjectError('')
+    try {
+      const name = newSubjectName.trim()
+      if (!name) return
+
+      await graphql<{ createSubject: { id: string; name: string } }>(
+        'mutation ($input: CreateSubjectInput!) { createSubject(input: $input) { id name } }',
+        { input: { name } },
+      )
+
+      setNewSubjectName('')
+      await refreshAll()
+    } catch (e) {
+      setSubjectError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function renameSubject(id: string, name: string) {
+    setSubjectError('')
+    try {
+      const next = name.trim()
+      if (!next) return
+
+      await graphql<{ renameSubject: { id: string; name: string } }>(
+        'mutation ($input: RenameSubjectInput!) { renameSubject(input: $input) { id name } }',
+        { input: { id, name: next } },
+      )
+
+      await refreshAll()
+    } catch (e) {
+      setSubjectError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function deleteSubject(id: string) {
+    setSubjectError('')
+    try {
+      await graphql<{ deleteSubject: boolean }>('mutation ($input: DeleteSubjectInput!) { deleteSubject(input: $input) }', {
+        input: { id },
+      })
+
+      await refreshAll()
+    } catch (e) {
+      setSubjectError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function renameProfessor(id: string, name: string) {
+    setProfError('')
+    try {
+      const next = name.trim()
+      if (!next) return
+
+      await graphql<{ renameProfessor: { id: string; name: string } }>(
+        'mutation ($input: RenameProfessorInput!) { renameProfessor(input: $input) { id name } }',
+        { input: { id, name: next } },
+      )
+      await refreshAll()
+    } catch (e) {
+      setProfError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function deleteProfessor(id: string) {
+    setProfError('')
+    try {
+      await graphql<{ deleteProfessor: boolean }>(
+        'mutation ($input: DeleteProfessorInput!) { deleteProfessor(input: $input) }',
+        { input: { id } },
+      )
+      await refreshAll()
+    } catch (e) {
+      setProfError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function createProfessorUnavailability(professorId: string, dayOfWeek: number, startTime: string, endTime: string) {
+    setProfError('')
+    try {
+      await graphql<{ createProfessorUnavailability: { id: string } }>(
+        'mutation ($input: CreateProfessorUnavailabilityInput!) { createProfessorUnavailability(input: $input) { id } }',
+        { input: { professorId, dayOfWeek, startTime, endTime } },
+      )
+      await refreshAll()
+    } catch (e) {
+      setProfError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function deleteProfessorUnavailability(id: string) {
+    setProfError('')
+    try {
+      await graphql<{ deleteProfessorUnavailability: boolean }>(
+        'mutation ($input: DeleteProfessorUnavailabilityInput!) { deleteProfessorUnavailability(input: $input) }',
+        { input: { id } },
+      )
+      await refreshAll()
+    } catch (e) {
+      setProfError(e instanceof Error ? e.message : String(e))
+    }
   }
 
   async function createClass() {
@@ -261,24 +386,6 @@ export default function AppEduPlan() {
     setQuickClassId(classes[0].id)
   }, [classes, quickClassId])
 
-  async function createProfessor() {
-    setProfError('')
-    try {
-      const name = newProfessorName.trim()
-      if (!name) return
-
-      await graphql<{ createProfessor: { id: string; name: string } }>(
-        'mutation ($input: CreateProfessorInput!) { createProfessor(input: $input) { id name } }',
-        { input: { name } },
-      )
-
-      setNewProfessorName('')
-      await refreshAll()
-    } catch (e) {
-      setProfError(e instanceof Error ? e.message : String(e))
-    }
-  }
-
   async function logout() {
     try {
       await graphql<{ logout: boolean }>('mutation { logout }', undefined, 8000)
@@ -393,6 +500,10 @@ export default function AppEduPlan() {
               newProfessorName={newProfessorName}
               setNewProfessorName={setNewProfessorName}
               onCreateProfessor={createProfessor}
+              onRenameProfessor={renameProfessor}
+              onDeleteProfessor={deleteProfessor}
+              onCreateProfessorUnavailability={createProfessorUnavailability}
+              onDeleteProfessorUnavailability={deleteProfessorUnavailability}
               profError={profError}
               ping={pingError ? '' : ping}
               dbOk={dbOk}
@@ -402,7 +513,20 @@ export default function AppEduPlan() {
         <Route path="/rooms" element={<RoomsPage rooms={rooms} scheduledSessions={scheduledSessions} />} />
         <Route
           path="/subjects"
-          element={<SubjectsPage subjects={subjects} courses={courses} scheduledSessions={scheduledSessions} />}
+          element={
+            <SubjectsPage
+              classes={classes}
+              subjects={subjects}
+              courses={courses}
+              scheduledSessions={scheduledSessions}
+              newSubjectName={newSubjectName}
+              setNewSubjectName={setNewSubjectName}
+              onCreateSubject={createSubject}
+              onRenameSubject={renameSubject}
+              onDeleteSubject={deleteSubject}
+              subjectError={subjectError}
+            />
+          }
         />
         <Route path="/settings" element={<SettingsPage unavailability={professorUnavailability} />} />
         <Route path="*" element={<Navigate to="/planning" replace />} />

@@ -112,6 +112,30 @@ class CreateProfessorInput:
 
 
 @strawberry.input
+class RenameProfessorInput:
+    id: str
+    name: str
+
+
+@strawberry.input
+class DeleteProfessorInput:
+    id: str
+
+
+@strawberry.input
+class CreateProfessorUnavailabilityInput:
+    professor_id: str
+    day_of_week: int
+    start_time: str
+    end_time: str
+
+
+@strawberry.input
+class DeleteProfessorUnavailabilityInput:
+    id: str
+
+
+@strawberry.input
 class CreateClassInput:
     name: str
 
@@ -131,6 +155,22 @@ class DeleteClassInput:
 class SetClassHomeRoomInput:
     class_id: str
     room_id: str | None = None
+
+
+@strawberry.input
+class CreateSubjectInput:
+    name: str
+
+
+@strawberry.input
+class RenameSubjectInput:
+    id: str
+    name: str
+
+
+@strawberry.input
+class DeleteSubjectInput:
+    id: str
 
 
 @strawberry.input

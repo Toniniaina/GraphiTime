@@ -7,8 +7,8 @@ class SchoolService:
     def __init__(self, repo: SchoolRepository) -> None:
         self._repo = repo
 
-    def list_classes(self, school_id: str):
-        return self._repo.list_classes(school_id)
+    def list_classes(self, school_id: str, query: str | None = None):
+        return self._repo.list_classes(school_id, query)
 
     def create_class(self, school_id: str, name: str):
         name = name.strip()
@@ -33,6 +33,21 @@ class SchoolService:
 
     def list_subjects(self, school_id: str):
         return self._repo.list_subjects(school_id)
+
+    def create_subject(self, school_id: str, name: str) -> tuple[str, str]:
+        name = name.strip()
+        if not name:
+            raise ValueError("Subject name is required")
+        return self._repo.create_subject(school_id, name)
+
+    def rename_subject(self, school_id: str, subject_id: str, new_name: str) -> tuple[str, str]:
+        new_name = new_name.strip()
+        if not new_name:
+            raise ValueError("Subject name is required")
+        return self._repo.rename_subject(school_id, subject_id, new_name)
+
+    def delete_subject(self, school_id: str, subject_id: str) -> bool:
+        return self._repo.delete_subject(school_id, subject_id)
 
     def list_courses(self, school_id: str):
         return self._repo.list_courses(school_id)

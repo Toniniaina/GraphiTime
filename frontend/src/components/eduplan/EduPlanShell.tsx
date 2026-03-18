@@ -54,31 +54,9 @@ export function EduPlanShell({
         <div style={S.sidebarHeader}>
           <div style={S.logoMark}>
             <span style={S.logoIcon}>✦</span>
-            {sidebarOpen ? <span style={S.logoText}>EduPlan</span> : null}
+            {sidebarOpen ? <span style={S.logoText}>GraphiTime</span> : null}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {me && onLogout ? (
-              <button
-                onClick={() => void onLogout()}
-                title="Déconnexion"
-                style={{
-                  background: 'rgba(244,240,232,0.06)',
-                  border: '1px solid rgba(244,240,232,0.14)',
-                  color: 'rgba(244,240,232,0.85)',
-                  width: 28,
-                  height: 28,
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                ⎋
-              </button>
-            ) : null}
             <button style={S.toggleBtn} onClick={() => setSidebarOpen(!sidebarOpen)}>
               {sidebarOpen ? '‹' : '›'}
             </button>
@@ -143,12 +121,32 @@ export function EduPlanShell({
         <div style={S.sidebarFooter}>
           <div style={S.userAvatar}>{avatar}</div>
           {sidebarOpen ? (
-            <div>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={S.userName}>{login}</div>
               <div style={S.userRole}>Administrateur</div>
+              {me && onLogout ? (
+                <button
+                  onClick={() => void onLogout()}
+                  title="Déconnexion"
+                  style={{
+                    marginTop: 10,
+                    background: 'transparent',
+                    border: '1px solid rgba(244,240,232,0.18)',
+                    color: 'rgba(244,240,232,0.85)',
+                    borderRadius: 10,
+                    padding: '8px 10px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    width: '100%',
+                  }}
+                >
+                  Déconnexion
+                </button>
+              ) : null}
             </div>
           ) : null}
-          {me && onLogout ? (
+          {!sidebarOpen && me && onLogout ? (
             <button
               onClick={() => void onLogout()}
               title="Déconnexion"
@@ -158,13 +156,13 @@ export function EduPlanShell({
                 border: '1px solid rgba(244,240,232,0.18)',
                 color: 'rgba(244,240,232,0.85)',
                 borderRadius: 10,
-                padding: sidebarOpen ? '8px 10px' : '8px 9px',
+                padding: '8px 9px',
                 fontSize: 12,
                 fontWeight: 700,
                 cursor: 'pointer',
               }}
             >
-              {sidebarOpen ? 'Déconnexion' : '⎋'}
+              ⎋
             </button>
           ) : null}
         </div>
