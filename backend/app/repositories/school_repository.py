@@ -103,6 +103,71 @@ class SchoolRepository:
                 )
                 return [(str(r[0]), str(r[1]), int(r[2])) for r in (cur.fetchall() or [])]
 
+    def create_room(self, school_id: str, name: str, capacity: int) -> tuple[str, str, int]:
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO rooms (school_id, name, capacity) VALUES (%s, %s, %s) RETURNING id, name, capacity",
+                    (school_id, name, capacity),
+                )
+                row = cur.fetchone()
+            conn.commit()
+
+        if row is None:
+            raise RuntimeError("Failed to insert room")
+        return (str(row[0]), str(row[1]), int(row[2]))
+
+    def update_room(self, school_id: str, room_id: str, name: str, capacity: int) -> tuple[str, str, int]:
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE rooms
+                    SET name=%s, capacity=%s
+                    WHERE id=%s AND school_id=%s
+                    RETURNING id, name, capacity
+                    """,
+                    (name, capacity, room_id, school_id),
+                )
+                row = cur.fetchone()
+            conn.commit()
+
+        if row is None:
+            raise RuntimeError("Room not found")
+        return (str(row[0]), str(row[1]), int(row[2]))
+
+    def delete_room(self, school_id: str, room_id: str) -> bool:
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM rooms WHERE id=%s AND school_id=%s",
+                    (room_id, school_id),
+                )
+                if cur.fetchone() is None:
+                    return False
+
+                cur.execute(
+                    "SELECT 1 FROM classes WHERE school_id=%s AND home_room_id=%s LIMIT 1",
+                    (school_id, room_id),
+                )
+                if cur.fetchone() is not None:
+                    raise RuntimeError("Cannot delete room: used as home room")
+
+                cur.execute(
+                    "SELECT 1 FROM scheduled_sessions WHERE school_id=%s AND room_id=%s LIMIT 1",
+                    (school_id, room_id),
+                )
+                if cur.fetchone() is not None:
+                    raise RuntimeError("Cannot delete room: used by scheduled sessions")
+
+                cur.execute(
+                    "DELETE FROM rooms WHERE id=%s AND school_id=%s",
+                    (room_id, school_id),
+                )
+                deleted = cur.rowcount or 0
+            conn.commit()
+        return deleted > 0
+
     def list_subjects(self, school_id: str) -> list[tuple[str, str]]:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
