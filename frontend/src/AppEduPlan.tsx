@@ -20,6 +20,7 @@ import type {
   DbSubject,
   Professor,
 } from './components/eduplan/types'
+import * as XLSX from 'xlsx'
 import { NAV_ITEMS } from './components/eduplan/data'
 
 export default function AppEduPlan() {
@@ -59,6 +60,8 @@ export default function AppEduPlan() {
   const [scheduledSessions, setScheduledSessions] = useState<DbScheduledSession[]>([])
   const [professorUnavailability, setProfessorUnavailability] = useState<DbProfessorUnavailability[]>([])
 
+  const [planningIoError, setPlanningIoError] = useState<string>('')
+
   const activeNav: EduPlanNavKey = (() => {
     const p = location.pathname
     if (p.startsWith('/planning')) return 'planning'
@@ -91,6 +94,77 @@ export default function AppEduPlan() {
       settings: '/settings',
     }
     navigate(map[key])
+  }
+
+  async function exportPlanningCsv() {
+    setPlanningIoError('')
+    try {
+      const res = await fetch('/planning/export.csv', { method: 'GET', credentials: 'include' })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'planning.csv'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setPlanningIoError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function exportPlanningXlsx() {
+    setPlanningIoError('')
+    try {
+      const res = await fetch('/planning/export.csv', { method: 'GET', credentials: 'include' })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const csvText = await res.text()
+      const wb = XLSX.read(csvText, { type: 'string' })
+      const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+      const blob = new Blob([out], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'planning.xlsx'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setPlanningIoError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function importPlanningCsv(file: File) {
+    setPlanningIoError('')
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/planning/import.csv?mode=replace', {
+        method: 'POST',
+        credentials: 'include',
+        body: fd,
+      })
+
+      const json = (await res.json()) as { ok: boolean; count: number; errors?: string[] }
+      if (!res.ok) {
+        throw new Error((json as any)?.detail ?? `HTTP ${res.status}`)
+      }
+      if (!json.ok) {
+        throw new Error((json.errors ?? []).join('\n') || 'Import failed')
+      }
+      await refreshAll()
+    } catch (e) {
+      setPlanningIoError(e instanceof Error ? e.message : String(e))
+    }
   }
 
   async function createProfessor() {
@@ -553,6 +627,11 @@ export default function AppEduPlan() {
               professorUnavailability={professorUnavailability}
               selectedClass={quickClassId}
               setSelectedClass={setQuickClassId}
+              onExportCsv={exportPlanningCsv}
+              onExportXlsx={exportPlanningXlsx}
+              onImportCsv={importPlanningCsv}
+              onImportFile={importPlanningFile}
+              planningIoError={planningIoError}
             />
           }
         />

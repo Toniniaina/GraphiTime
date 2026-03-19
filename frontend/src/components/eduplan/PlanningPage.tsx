@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DAYS, HOURS, SUBJECT_COLORS, WEEKS } from './data'
 import { S } from './styles'
 import type { DbClass, DbProfessorUnavailability, DbScheduledSession } from './types'
@@ -14,6 +14,9 @@ export function PlanningPage({
   selectedClass,
   setSelectedClass,
   onAddClick,
+  onExportCsv,
+  onImportCsv,
+  planningIoError,
 }: {
   professorsCount: number
   classes: DbClass[]
@@ -22,9 +25,13 @@ export function PlanningPage({
   selectedClass: string
   setSelectedClass: (v: string) => void
   onAddClick?: () => void
+  onExportCsv?: () => void | Promise<void>
+  onImportCsv?: (file: File) => void | Promise<void>
+  planningIoError?: string
 }) {
   const [selectedWeek, setSelectedWeek] = useState(0)
   const [hoveredBlock, setHoveredBlock] = useState<number | null>(null)
+  const fileRef = useRef<HTMLInputElement | null>(null)
 
   const todayIdx = (() => {
     const jsDay = new Date().getDay()
@@ -147,6 +154,59 @@ export function PlanningPage({
           </div>
         </div>
         <div style={S.topBarRight}>
+          {onExportCsv || onImportCsv ? (
+            <>
+              {onExportCsv ? (
+                <button
+                  style={{
+                    background: 'white',
+                    border: '1px solid rgba(13,31,53,0.16)',
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    fontSize: 12,
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    color: '#0d1f35',
+                  }}
+                  onClick={() => void onExportCsv()}
+                >
+                  Export CSV
+                </button>
+              ) : null}
+
+              {onImportCsv ? (
+                <>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (!f) return
+                      void onImportCsv(f)
+                      e.target.value = ''
+                    }}
+                  />
+                  <button
+                    style={{
+                      background: 'white',
+                      border: '1px solid rgba(13,31,53,0.16)',
+                      borderRadius: 10,
+                      padding: '10px 12px',
+                      fontSize: 12,
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      color: '#0d1f35',
+                    }}
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    Import CSV
+                  </button>
+                </>
+              ) : null}
+            </>
+          ) : null}
           <div style={S.weekNav}>
             <button style={S.weekBtn} onClick={() => setSelectedWeek(Math.max(0, selectedWeek - 1))}>
               ‹
@@ -171,6 +231,12 @@ export function PlanningPage({
           </button>
         </div>
       </header>
+
+      {planningIoError ? (
+        <div style={{ margin: '0 32px 12px', color: '#c0392b', fontSize: 13, fontWeight: 700, whiteSpace: 'pre-wrap' }}>
+          {planningIoError}
+        </div>
+      ) : null}
 
       <div style={S.statsRow}>
         {[
