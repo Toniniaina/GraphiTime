@@ -125,7 +125,15 @@ export default function AppEduPlan() {
         throw new Error(`HTTP ${res.status}`)
       }
       const csvText = await res.text()
-      const wb = XLSX.read(csvText, { type: 'string' })
+      // Parse CSV into array of arrays (rows)
+      const lines = csvText.trim().split('\n')
+      const rows = lines.map(line => {
+        // Simple CSV split (no quoted commas in data)
+        return line.split(',')
+      })
+      const ws = XLSX.utils.aoa_to_sheet(rows)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Planning')
       const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
       const blob = new Blob([out], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -165,6 +173,30 @@ export default function AppEduPlan() {
     } catch (e) {
       setPlanningIoError(e instanceof Error ? e.message : String(e))
     }
+  }
+
+  async function importPlanningFile(file: File) {
+    const name = (file.name || '').toLowerCase()
+    if (name.endsWith('.xlsx')) {
+      setPlanningIoError('')
+      try {
+        const buf = await file.arrayBuffer()
+        const wb = XLSX.read(buf, { type: 'array' })
+        const firstSheet = wb.SheetNames[0]
+        if (!firstSheet) {
+          throw new Error('Fichier Excel vide')
+        }
+        const ws = wb.Sheets[firstSheet]
+        const csv = XLSX.utils.sheet_to_csv(ws)
+        const csvFile = new File([csv], file.name.replace(/\.xlsx$/i, '.csv'), { type: 'text/csv' })
+        await importPlanningCsv(csvFile)
+      } catch (e) {
+        setPlanningIoError(e instanceof Error ? e.message : String(e))
+      }
+      return
+    }
+
+    await importPlanningCsv(file)
   }
 
   async function createProfessor() {

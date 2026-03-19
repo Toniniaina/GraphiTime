@@ -15,7 +15,9 @@ export function PlanningPage({
   setSelectedClass,
   onAddClick,
   onExportCsv,
+  onExportXlsx,
   onImportCsv,
+  onImportFile,
   planningIoError,
 }: {
   professorsCount: number
@@ -26,7 +28,9 @@ export function PlanningPage({
   setSelectedClass: (v: string) => void
   onAddClick?: () => void
   onExportCsv?: () => void | Promise<void>
+  onExportXlsx?: () => void | Promise<void>
   onImportCsv?: (file: File) => void | Promise<void>
+  onImportFile?: (file: File) => void | Promise<void>
   planningIoError?: string
 }) {
   const [selectedWeek, setSelectedWeek] = useState(0)
@@ -154,7 +158,7 @@ export function PlanningPage({
           </div>
         </div>
         <div style={S.topBarRight}>
-          {onExportCsv || onImportCsv ? (
+          {onExportCsv || onExportXlsx || onImportCsv || onImportFile ? (
             <>
               {onExportCsv ? (
                 <button
@@ -174,17 +178,39 @@ export function PlanningPage({
                 </button>
               ) : null}
 
-              {onImportCsv ? (
+              {onExportXlsx ? (
+                <button
+                  style={{
+                    background: 'white',
+                    border: '1px solid rgba(13,31,53,0.16)',
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    fontSize: 12,
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    color: '#0d1f35',
+                  }}
+                  onClick={() => void onExportXlsx()}
+                >
+                  Export Excel
+                </button>
+              ) : null}
+
+              {onImportCsv || onImportFile ? (
                 <>
                   <input
                     ref={fileRef}
                     type="file"
-                    accept=".csv,text/csv"
+                    accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     style={{ display: 'none' }}
                     onChange={(e) => {
                       const f = e.target.files?.[0]
                       if (!f) return
-                      void onImportCsv(f)
+                      if (onImportFile) {
+                        void onImportFile(f)
+                      } else if (onImportCsv) {
+                        void onImportCsv(f)
+                      }
                       e.target.value = ''
                     }}
                   />
@@ -201,7 +227,7 @@ export function PlanningPage({
                     }}
                     onClick={() => fileRef.current?.click()}
                   >
-                    Import CSV
+                    Import (CSV/Excel)
                   </button>
                 </>
               ) : null}
