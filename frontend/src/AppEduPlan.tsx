@@ -46,6 +46,8 @@ export default function AppEduPlan() {
   const [newSubjectName, setNewSubjectName] = useState<string>('')
   const [subjectError, setSubjectError] = useState<string>('')
 
+  const [courseError, setCourseError] = useState<string>('')
+
   const [classes, setClasses] = useState<DbClass[]>([])
   const [rooms, setRooms] = useState<DbRoom[]>([])
   const [subjects, setSubjects] = useState<DbSubject[]>([])
@@ -102,6 +104,48 @@ export default function AppEduPlan() {
       await refreshAll()
     } catch (e) {
       setProfError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function createCourse(classId: string, subjectId: string, professorId: string, requiredHoursPerWeek: number) {
+    setCourseError('')
+    try {
+      await graphql<{ createCourse: { id: string } }>(
+        'mutation ($input: CreateCourseInput!) { createCourse(input: $input) { id } }',
+        {
+          input: { classId, subjectId, professorId, requiredHoursPerWeek },
+        },
+      )
+      await refreshAll()
+    } catch (e) {
+      setCourseError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function updateCourse(courseId: string, professorId: string, requiredHoursPerWeek: number) {
+    setCourseError('')
+    try {
+      await graphql<{ updateCourse: { id: string } }>(
+        'mutation ($input: UpdateCourseInput!) { updateCourse(input: $input) { id } }',
+        {
+          input: { id: courseId, professorId, requiredHoursPerWeek },
+        },
+      )
+      await refreshAll()
+    } catch (e) {
+      setCourseError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function deleteCourse(courseId: string) {
+    setCourseError('')
+    try {
+      await graphql<{ deleteCourse: boolean }>('mutation ($input: DeleteCourseInput!) { deleteCourse(input: $input) }', {
+        input: { id: courseId },
+      })
+      await refreshAll()
+    } catch (e) {
+      setCourseError(e instanceof Error ? e.message : String(e))
     }
   }
 
@@ -515,6 +559,7 @@ export default function AppEduPlan() {
           path="/subjects"
           element={
             <SubjectsPage
+              professors={professors}
               classes={classes}
               subjects={subjects}
               courses={courses}
@@ -525,6 +570,10 @@ export default function AppEduPlan() {
               onRenameSubject={renameSubject}
               onDeleteSubject={deleteSubject}
               subjectError={subjectError}
+              onCreateCourse={createCourse}
+              onUpdateCourse={updateCourse}
+              onDeleteCourse={deleteCourse}
+              courseError={courseError}
             />
           }
         />
