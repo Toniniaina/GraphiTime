@@ -20,7 +20,11 @@ class ProfessorRepository:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO professors (school_id, name) VALUES (%s, %s) RETURNING id, name",
+                    """
+                    INSERT INTO professors (school_id, name)
+                    VALUES (%s, %s)
+                    RETURNING id, name
+                    """,
                     (school_id, name),
                 )
                 row = cur.fetchone()

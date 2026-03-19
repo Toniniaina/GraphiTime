@@ -12,9 +12,11 @@ from .types import (
     ApplyScheduleResult,
     AuthPayload,
     CreateClassInput,
+    CreateCourseInput,
     CreateProfessorInput,
     CreateProfessorUnavailabilityInput,
     CreateSubjectInput,
+    DeleteCourseInput,
     DeleteProfessorInput,
     DeleteClassInput,
     DeleteProfessorUnavailabilityInput,
@@ -31,6 +33,8 @@ from .types import (
     SchoolClass,
     SetClassHomeRoomInput,
     Subject,
+    Course,
+    UpdateCourseInput,
 )
 
 
@@ -210,6 +214,67 @@ class Mutation:
         school_id = _require_school_id(info)
         svc = SchoolService(SchoolRepository(info.context.db_pool))
         return svc.delete_subject(school_id, input.id)
+
+    @strawberry.mutation
+    def create_course(self, info: strawberry.Info[GraphQLContext, None], input: CreateCourseInput) -> Course:
+        school_id = _require_school_id(info)
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
+        (
+            crs_id,
+            req,
+            sub_id,
+            sub_name,
+            cls_id,
+            cls_name,
+            prof_id,
+            prof_name,
+        ) = svc.create_course(
+            school_id,
+            input.class_id,
+            input.subject_id,
+            input.professor_id,
+            input.required_hours_per_week,
+        )
+        return Course(
+            id=crs_id,
+            required_hours_per_week=req,
+            subject=Subject(id=sub_id, name=sub_name),
+            school_class=SchoolClass(id=cls_id, name=cls_name),
+            professor=Professor(id=prof_id, name=prof_name),
+        )
+
+    @strawberry.mutation
+    def update_course(self, info: strawberry.Info[GraphQLContext, None], input: UpdateCourseInput) -> Course:
+        school_id = _require_school_id(info)
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
+        (
+            crs_id,
+            req,
+            sub_id,
+            sub_name,
+            cls_id,
+            cls_name,
+            prof_id,
+            prof_name,
+        ) = svc.update_course(
+            school_id,
+            input.id,
+            input.professor_id,
+            input.required_hours_per_week,
+        )
+        return Course(
+            id=crs_id,
+            required_hours_per_week=req,
+            subject=Subject(id=sub_id, name=sub_name),
+            school_class=SchoolClass(id=cls_id, name=cls_name),
+            professor=Professor(id=prof_id, name=prof_name),
+        )
+
+    @strawberry.mutation
+    def delete_course(self, info: strawberry.Info[GraphQLContext, None], input: DeleteCourseInput) -> bool:
+        school_id = _require_school_id(info)
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
+        return svc.delete_course(school_id, input.id)
 
     @strawberry.mutation
     def apply_generated_schedule(self, info: strawberry.Info[GraphQLContext, None]) -> ApplyScheduleResult:
