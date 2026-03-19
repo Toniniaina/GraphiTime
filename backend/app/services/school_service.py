@@ -52,6 +52,38 @@ class SchoolService:
     def list_courses(self, school_id: str):
         return self._repo.list_courses(school_id)
 
+    def create_course(
+        self,
+        school_id: str,
+        class_id: str,
+        subject_id: str,
+        professor_id: str,
+        required_hours_per_week: float,
+    ):
+        if required_hours_per_week <= 0:
+            raise ValueError("required_hours_per_week must be > 0")
+        return self._repo.create_course(
+            school_id,
+            class_id,
+            subject_id,
+            professor_id,
+            required_hours_per_week,
+        )
+
+    def update_course(
+        self,
+        school_id: str,
+        course_id: str,
+        professor_id: str,
+        required_hours_per_week: float,
+    ):
+        if required_hours_per_week <= 0:
+            raise ValueError("required_hours_per_week must be > 0")
+        return self._repo.update_course(school_id, course_id, professor_id, required_hours_per_week)
+
+    def delete_course(self, school_id: str, course_id: str) -> bool:
+        return self._repo.delete_course(school_id, course_id)
+
     def list_professor_unavailability(self, school_id: str):
         return self._repo.list_professor_unavailability(school_id)
 

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { DbClass, DbCourse, DbScheduledSession, DbSubject } from './types'
+import type { DbClass, DbCourse, DbScheduledSession, DbSubject, Professor } from './types'
 import { S } from './styles'
 
 export function SubjectsPage({
+  professors,
   classes,
   subjects,
   courses,
@@ -13,7 +14,12 @@ export function SubjectsPage({
   onRenameSubject,
   onDeleteSubject,
   subjectError,
+  onCreateCourse,
+  onUpdateCourse,
+  onDeleteCourse,
+  courseError,
 }: {
+  professors: Professor[]
   classes: DbClass[]
   subjects: DbSubject[]
   courses: DbCourse[]
@@ -24,6 +30,15 @@ export function SubjectsPage({
   onRenameSubject: (id: string, name: string) => void | Promise<void>
   onDeleteSubject: (id: string) => void | Promise<void>
   subjectError?: string
+  onCreateCourse: (
+    classId: string,
+    subjectId: string,
+    professorId: string,
+    requiredHoursPerWeek: number,
+  ) => void | Promise<void>
+  onUpdateCourse: (courseId: string, professorId: string, requiredHoursPerWeek: number) => void | Promise<void>
+  onDeleteCourse: (courseId: string) => void | Promise<void>
+  courseError?: string
 }) {
   const [view, setView] = useState<'list' | 'byClass'>('byClass')
   const [classQuery, setClassQuery] = useState<string>('')
@@ -37,6 +52,35 @@ export function SubjectsPage({
     | null
   >(null)
   const [editNameValue, setEditNameValue] = useState<string>('')
+
+  const [courseModal, setCourseModal] = useState<
+    | {
+        type: 'create'
+        classId: string
+        className: string
+      }
+    | {
+        type: 'edit'
+        courseId: string
+        className: string
+        subjectName: string
+        professorId: string
+        requiredHoursPerWeek: number
+        sessionsCount: number
+      }
+    | {
+        type: 'delete'
+        courseId: string
+        className: string
+        subjectName: string
+        sessionsCount: number
+      }
+    | null
+  >(null)
+
+  const [courseSubjectId, setCourseSubjectId] = useState<string>('')
+  const [courseProfessorId, setCourseProfessorId] = useState<string>('')
+  const [courseHours, setCourseHours] = useState<string>('')
 
   const sessionsByCourse = new Map<string, number>()
   for (const ses of scheduledSessions) {
@@ -72,6 +116,14 @@ export function SubjectsPage({
   const classesSorted = useMemo(() => {
     return classes.slice().sort((a, b) => a.name.localeCompare(b.name))
   }, [classes])
+
+  const subjectsSorted = useMemo(() => {
+    return subjects.slice().sort((a, b) => a.name.localeCompare(b.name))
+  }, [subjects])
+
+  const professorsSorted = useMemo(() => {
+    return professors.slice().sort((a, b) => a.name.localeCompare(b.name))
+  }, [professors])
 
   async function graphql<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
     const res = await fetch('/graphql', {
@@ -190,6 +242,10 @@ export function SubjectsPage({
             <div style={{ margin: '0 32px 10px', color: '#c0392b', fontSize: 13, fontWeight: 700 }}>{subjectError}</div>
           ) : null}
         </>
+      ) : null}
+
+      {view === 'byClass' && courseError ? (
+        <div style={{ margin: '0 32px 10px', color: '#c0392b', fontSize: 13, fontWeight: 700 }}>{courseError}</div>
       ) : null}
 
       <div style={S.statsRow}>
@@ -407,15 +463,28 @@ export function SubjectsPage({
                     }}
                   >
                     <div style={{ fontWeight: 900, color: '#0d1f35' }}>{cls.name}</div>
-                    <div style={{ color: 'rgba(13,31,53,0.45)', fontSize: 12, fontWeight: 800 }}>
-                      {clsCourses.length ? `${clsCourses.length} matière(s)` : 'Aucune matière'}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ color: 'rgba(13,31,53,0.45)', fontSize: 12, fontWeight: 800 }}>
+                        {clsCourses.length ? `${clsCourses.length} matière(s)` : 'Aucune matière'}
+                      </div>
+                      <button
+                        style={S.addBtn}
+                        onClick={() => {
+                          setCourseSubjectId('')
+                          setCourseProfessorId(professorsSorted[0]?.id ?? '')
+                          setCourseHours('')
+                          setCourseModal({ type: 'create', classId: cls.id, className: cls.name })
+                        }}
+                      >
+                        Ajouter un cours
+                      </button>
                     </div>
                   </div>
 
                   <div
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '1fr 160px 140px',
+                      gridTemplateColumns: '1fr 160px 140px 120px',
                       gap: 12,
                       padding: '14px 16px',
                       borderBottom: '1px solid rgba(13,31,53,0.08)',
@@ -428,6 +497,7 @@ export function SubjectsPage({
                     <div>Matière</div>
                     <div>Heures / semaine</div>
                     <div>Séances</div>
+                    <div></div>
                   </div>
 
                   {clsCourses.length ? (
@@ -438,18 +508,49 @@ export function SubjectsPage({
                           key={c.id}
                           style={{
                             display: 'grid',
-                            gridTemplateColumns: '1fr 160px 140px',
+                            gridTemplateColumns: '1fr 160px 140px 120px',
                             gap: 12,
                             padding: '14px 16px',
                             borderBottom: '1px solid rgba(13,31,53,0.06)',
                             fontSize: 13,
                             color: '#0d1f35',
+                            alignItems: 'center',
                           }}
                         >
                           <div style={{ fontWeight: 800 }}>{c.subject.name}</div>
                           <div style={{ fontFamily: 'monospace', color: 'rgba(13,31,53,0.7)' }}>{c.requiredHoursPerWeek}</div>
                           <div style={{ color: sesCount ? '#2d6a4f' : 'rgba(13,31,53,0.45)', fontWeight: 800 }}>
                             {sesCount ? sesCount : '—'}
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <button
+                              style={{
+                                background: 'white',
+                                border: '1px solid rgba(13,31,53,0.18)',
+                                borderRadius: 10,
+                                padding: '8px 10px',
+                                fontSize: 12,
+                                fontWeight: 900,
+                                cursor: 'pointer',
+                                color: 'rgba(13,31,53,0.85)',
+                                whiteSpace: 'nowrap',
+                              }}
+                              onClick={() => {
+                                setCourseProfessorId(c.professor.id)
+                                setCourseHours(String(c.requiredHoursPerWeek))
+                                setCourseModal({
+                                  type: 'edit',
+                                  courseId: c.id,
+                                  className: cls.name,
+                                  subjectName: c.subject.name,
+                                  professorId: c.professor.id,
+                                  requiredHoursPerWeek: c.requiredHoursPerWeek,
+                                  sessionsCount: sesCount,
+                                })
+                              }}
+                            >
+                              Modifier
+                            </button>
                           </div>
                         </div>
                       )
@@ -467,6 +568,251 @@ export function SubjectsPage({
               {classes.length ? 'Aucune classe ne correspond à la recherche.' : 'Aucune classe.'}
             </div>
           )}
+        </div>
+      ) : null}
+
+      {courseModal ? (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(13,31,53,0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+            zIndex: 70,
+          }}
+          onClick={() => setCourseModal(null)}
+        >
+          <div
+            style={{
+              width: 'min(560px, 92vw)',
+              background: 'white',
+              borderRadius: 16,
+              border: '1px solid rgba(13,31,53,0.12)',
+              boxShadow: '0 18px 60px rgba(0,0,0,0.25)',
+              overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: '16px 18px', borderBottom: '1px solid rgba(13,31,53,0.08)' }}>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#0d1f35' }}>
+                {courseModal.type === 'create'
+                  ? 'Ajouter un cours'
+                  : courseModal.type === 'edit'
+                    ? 'Modifier le cours'
+                    : 'Supprimer le cours'}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(13,31,53,0.55)', fontWeight: 800 }}>
+                {courseModal.type === 'create'
+                  ? courseModal.className
+                  : `${courseModal.className} · ${courseModal.subjectName}`}
+              </div>
+            </div>
+
+            <div style={{ padding: 18 }}>
+              {courseModal.type === 'create' ? (
+                <div style={{ display: 'grid', gap: 14 }}>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'rgba(13,31,53,0.55)' }}>Matière</div>
+                    <select
+                      value={courseSubjectId}
+                      onChange={(e) => setCourseSubjectId(e.target.value)}
+                      style={{ ...S.searchInput, width: '100%', padding: '10px 12px' }}
+                    >
+                      <option value="">Sélectionner…</option>
+                      {subjectsSorted.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'rgba(13,31,53,0.55)' }}>Professeur</div>
+                    <select
+                      value={courseProfessorId}
+                      onChange={(e) => setCourseProfessorId(e.target.value)}
+                      style={{ ...S.searchInput, width: '100%', padding: '10px 12px' }}
+                    >
+                      <option value="">Sélectionner…</option>
+                      {professorsSorted.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'rgba(13,31,53,0.55)' }}>Heures / semaine</div>
+                    <input
+                      value={courseHours}
+                      onChange={(e) => setCourseHours(e.target.value)}
+                      placeholder="ex: 4"
+                      style={{ ...S.searchInput, width: '100%', padding: '10px 12px' }}
+                    />
+                  </div>
+                </div>
+              ) : courseModal.type === 'edit' ? (
+                <div style={{ display: 'grid', gap: 14 }}>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'rgba(13,31,53,0.55)' }}>Professeur</div>
+                    <select
+                      value={courseProfessorId}
+                      onChange={(e) => setCourseProfessorId(e.target.value)}
+                      style={{ ...S.searchInput, width: '100%', padding: '10px 12px' }}
+                    >
+                      <option value="">Sélectionner…</option>
+                      {professorsSorted.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'rgba(13,31,53,0.55)' }}>Heures / semaine</div>
+                    <input
+                      value={courseHours}
+                      onChange={(e) => setCourseHours(e.target.value)}
+                      placeholder="ex: 4"
+                      style={{ ...S.searchInput, width: '100%', padding: '10px 12px' }}
+                    />
+                  </div>
+
+                  <div style={{ fontSize: 12, color: 'rgba(13,31,53,0.55)', fontWeight: 800 }}>
+                    Séances liées: {courseModal.sessionsCount || '—'}
+                  </div>
+
+                  <div
+                    style={{
+                      borderTop: '1px solid rgba(13,31,53,0.08)',
+                      paddingTop: 14,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-end',
+                      gap: 12,
+                    }}
+                  >
+                    <button
+                      onClick={() =>
+                        setCourseModal({
+                          type: 'delete',
+                          courseId: courseModal.courseId,
+                          className: courseModal.className,
+                          subjectName: courseModal.subjectName,
+                          sessionsCount: courseModal.sessionsCount,
+                        })
+                      }
+                      style={{
+                        background: 'white',
+                        border: '1px solid rgba(192,57,43,0.35)',
+                        borderRadius: 10,
+                        padding: '8px 10px',
+                        fontSize: 12,
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        color: '#c0392b',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title="Supprimer le cours"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: 10 }}>
+                  <div style={{ fontSize: 13, color: '#0d1f35', fontWeight: 800 }}>Cette action est irréversible.</div>
+                  <div style={{ fontSize: 12, color: 'rgba(13,31,53,0.55)', fontWeight: 800 }}>
+                    Séances liées: {courseModal.sessionsCount || '—'}
+                  </div>
+                  {courseModal.sessionsCount > 0 ? (
+                    <div style={{ fontSize: 12, color: '#c0392b', fontWeight: 900 }}>
+                      Suppression impossible: le cours est utilisé par des séances.
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 10,
+                padding: '12px 18px 16px',
+                borderTop: '1px solid rgba(13,31,53,0.08)',
+              }}
+            >
+              <button
+                style={{
+                  background: 'transparent',
+                  border: '1px solid rgba(13,31,53,0.16)',
+                  color: 'rgba(13,31,53,0.75)',
+                  borderRadius: 10,
+                  padding: '9px 14px',
+                  fontSize: 12,
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                }}
+                onClick={() => setCourseModal(null)}
+              >
+                Annuler
+              </button>
+
+              {courseModal.type === 'create' ? (
+                <button
+                  style={S.addBtn}
+                  onClick={() => {
+                    const hours = Number(courseHours)
+                    if (!courseSubjectId || !courseProfessorId || !Number.isFinite(hours)) return
+                    void onCreateCourse(courseModal.classId, courseSubjectId, courseProfessorId, hours)
+                    setCourseModal(null)
+                  }}
+                >
+                  Ajouter
+                </button>
+              ) : courseModal.type === 'edit' ? (
+                <button
+                  style={S.addBtn}
+                  onClick={() => {
+                    const hours = Number(courseHours)
+                    if (!courseProfessorId || !Number.isFinite(hours)) return
+                    void onUpdateCourse(courseModal.courseId, courseProfessorId, hours)
+                    setCourseModal(null)
+                  }}
+                >
+                  Enregistrer
+                </button>
+              ) : (
+                <button
+                  style={{
+                    background: '#c0392b',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 10,
+                    padding: '9px 14px',
+                    fontSize: 12,
+                    fontWeight: 900,
+                    cursor: courseModal.sessionsCount > 0 ? 'not-allowed' : 'pointer',
+                    opacity: courseModal.sessionsCount > 0 ? 0.5 : 1,
+                  }}
+                  disabled={courseModal.sessionsCount > 0}
+                  onClick={() => {
+                    void onDeleteCourse(courseModal.courseId)
+                    setCourseModal(null)
+                  }}
+                >
+                  Supprimer
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       ) : null}
 

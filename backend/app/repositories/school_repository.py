@@ -207,6 +207,151 @@ class SchoolRepository:
                     for r in (cur.fetchall() or [])
                 ]
 
+    def create_course(
+        self,
+        school_id: str,
+        class_id: str,
+        subject_id: str,
+        professor_id: str,
+        required_hours_per_week: float,
+    ) -> tuple[str, float, str, str, str, str, str, str]:
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, name FROM classes WHERE id=%s AND school_id=%s",
+                    (class_id, school_id),
+                )
+                cls = cur.fetchone()
+                if cls is None:
+                    raise RuntimeError("Class not found")
+
+                cur.execute(
+                    "SELECT id, name FROM subjects WHERE id=%s AND school_id=%s",
+                    (subject_id, school_id),
+                )
+                sub = cur.fetchone()
+                if sub is None:
+                    raise RuntimeError("Subject not found")
+
+                cur.execute(
+                    "SELECT id, name FROM professors WHERE id=%s AND school_id=%s",
+                    (professor_id, school_id),
+                )
+                prof = cur.fetchone()
+                if prof is None:
+                    raise RuntimeError("Professor not found")
+
+                cur.execute(
+                    """
+                    INSERT INTO courses (school_id, class_id, subject_id, professor_id, required_hours_per_week)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING id, required_hours_per_week
+                    """,
+                    (school_id, class_id, subject_id, professor_id, required_hours_per_week),
+                )
+                row = cur.fetchone()
+            conn.commit()
+
+        if row is None:
+            raise RuntimeError("Failed to insert course")
+
+        return (
+            str(row[0]),
+            float(row[1]),
+            str(sub[0]),
+            str(sub[1]),
+            str(cls[0]),
+            str(cls[1]),
+            str(prof[0]),
+            str(prof[1]),
+        )
+
+    def update_course(
+        self,
+        school_id: str,
+        course_id: str,
+        professor_id: str,
+        required_hours_per_week: float,
+    ) -> tuple[str, float, str, str, str, str, str, str]:
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, name FROM professors WHERE id=%s AND school_id=%s",
+                    (professor_id, school_id),
+                )
+                prof = cur.fetchone()
+                if prof is None:
+                    raise RuntimeError("Professor not found")
+
+                cur.execute(
+                    """
+                    UPDATE courses
+                    SET professor_id=%s, required_hours_per_week=%s
+                    WHERE id=%s AND school_id=%s
+                    RETURNING id, required_hours_per_week, subject_id, class_id
+                    """,
+                    (professor_id, required_hours_per_week, course_id, school_id),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    raise RuntimeError("Course not found")
+
+                _cid, _req, subject_id, class_id = row
+
+                cur.execute(
+                    "SELECT id, name FROM subjects WHERE id=%s AND school_id=%s",
+                    (subject_id, school_id),
+                )
+                sub = cur.fetchone()
+                if sub is None:
+                    raise RuntimeError("Subject not found")
+
+                cur.execute(
+                    "SELECT id, name FROM classes WHERE id=%s AND school_id=%s",
+                    (class_id, school_id),
+                )
+                cls = cur.fetchone()
+                if cls is None:
+                    raise RuntimeError("Class not found")
+
+            conn.commit()
+
+        return (
+            str(row[0]),
+            float(row[1]),
+            str(sub[0]),
+            str(sub[1]),
+            str(cls[0]),
+            str(cls[1]),
+            str(prof[0]),
+            str(prof[1]),
+        )
+
+    def delete_course(self, school_id: str, course_id: str) -> bool:
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM courses WHERE id=%s AND school_id=%s",
+                    (course_id, school_id),
+                )
+                if cur.fetchone() is None:
+                    return False
+
+                cur.execute(
+                    "SELECT 1 FROM scheduled_sessions WHERE school_id=%s AND course_id=%s LIMIT 1",
+                    (school_id, course_id),
+                )
+                if cur.fetchone() is not None:
+                    raise RuntimeError("Cannot delete course: used by scheduled sessions")
+
+                cur.execute(
+                    "DELETE FROM courses WHERE id=%s AND school_id=%s",
+                    (course_id, school_id),
+                )
+                deleted = cur.rowcount or 0
+            conn.commit()
+        return deleted > 0
+
     def list_professor_unavailability(self, school_id: str) -> list[tuple[str, str, str, int, str, str]]:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:

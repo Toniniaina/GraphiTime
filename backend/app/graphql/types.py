@@ -174,6 +174,26 @@ class DeleteSubjectInput:
 
 
 @strawberry.input
+class CreateCourseInput:
+    class_id: str
+    subject_id: str
+    professor_id: str
+    required_hours_per_week: float
+
+
+@strawberry.input
+class UpdateCourseInput:
+    id: str
+    professor_id: str
+    required_hours_per_week: float
+
+
+@strawberry.input
+class DeleteCourseInput:
+    id: str
+
+
+@strawberry.input
 class RegisterSchoolInput:
     school_name: str
     login: str
