@@ -48,6 +48,10 @@ export default function AppEduPlan() {
 
   const [courseError, setCourseError] = useState<string>('')
 
+  const [roomError, setRoomError] = useState<string>('')
+  const [newRoomName, setNewRoomName] = useState<string>('')
+  const [newRoomCapacity, setNewRoomCapacity] = useState<string>('')
+
   const [classes, setClasses] = useState<DbClass[]>([])
   const [rooms, setRooms] = useState<DbRoom[]>([])
   const [subjects, setSubjects] = useState<DbSubject[]>([])
@@ -104,6 +108,55 @@ export default function AppEduPlan() {
       await refreshAll()
     } catch (e) {
       setProfError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function createRoom() {
+    setRoomError('')
+    try {
+      const name = newRoomName.trim()
+      if (!name) return
+
+      const cap = Number(newRoomCapacity || '0')
+      if (!Number.isFinite(cap) || cap < 0) {
+        throw new Error('Capacité invalide')
+      }
+
+      await graphql<{ createRoom: { id: string } }>(
+        'mutation ($input: CreateRoomInput!) { createRoom(input: $input) { id } }',
+        { input: { name, capacity: cap } },
+      )
+
+      setNewRoomName('')
+      setNewRoomCapacity('')
+      await refreshAll()
+    } catch (e) {
+      setRoomError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function updateRoom(id: string, name: string, capacity: number) {
+    setRoomError('')
+    try {
+      await graphql<{ updateRoom: { id: string } }>(
+        'mutation ($input: UpdateRoomInput!) { updateRoom(input: $input) { id } }',
+        { input: { id, name, capacity } },
+      )
+      await refreshAll()
+    } catch (e) {
+      setRoomError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function deleteRoom(id: string) {
+    setRoomError('')
+    try {
+      await graphql<{ deleteRoom: boolean }>('mutation ($input: DeleteRoomInput!) { deleteRoom(input: $input) }', {
+        input: { id },
+      })
+      await refreshAll()
+    } catch (e) {
+      setRoomError(e instanceof Error ? e.message : String(e))
     }
   }
 
@@ -554,7 +607,23 @@ export default function AppEduPlan() {
             />
           }
         />
-        <Route path="/rooms" element={<RoomsPage rooms={rooms} scheduledSessions={scheduledSessions} />} />
+        <Route
+          path="/rooms"
+          element={
+            <RoomsPage
+              rooms={rooms}
+              scheduledSessions={scheduledSessions}
+              newRoomName={newRoomName}
+              setNewRoomName={setNewRoomName}
+              newRoomCapacity={newRoomCapacity}
+              setNewRoomCapacity={setNewRoomCapacity}
+              onCreateRoom={createRoom}
+              onUpdateRoom={updateRoom}
+              onDeleteRoom={deleteRoom}
+              roomError={roomError}
+            />
+          }
+        />
         <Route
           path="/subjects"
           element={

@@ -31,6 +31,25 @@ class SchoolService:
     def list_rooms(self, school_id: str):
         return self._repo.list_rooms(school_id)
 
+    def create_room(self, school_id: str, name: str, capacity: int):
+        name = name.strip()
+        if not name:
+            raise ValueError("Room name is required")
+        if capacity < 0:
+            raise ValueError("capacity must be >= 0")
+        return self._repo.create_room(school_id, name, capacity)
+
+    def update_room(self, school_id: str, room_id: str, name: str, capacity: int):
+        name = name.strip()
+        if not name:
+            raise ValueError("Room name is required")
+        if capacity < 0:
+            raise ValueError("capacity must be >= 0")
+        return self._repo.update_room(school_id, room_id, name, capacity)
+
+    def delete_room(self, school_id: str, room_id: str) -> bool:
+        return self._repo.delete_room(school_id, room_id)
+
     def list_subjects(self, school_id: str):
         return self._repo.list_subjects(school_id)
 

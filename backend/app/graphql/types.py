@@ -174,6 +174,24 @@ class DeleteSubjectInput:
 
 
 @strawberry.input
+class CreateRoomInput:
+    name: str
+    capacity: int
+
+
+@strawberry.input
+class UpdateRoomInput:
+    id: str
+    name: str
+    capacity: int
+
+
+@strawberry.input
+class DeleteRoomInput:
+    id: str
+
+
+@strawberry.input
 class CreateCourseInput:
     class_id: str
     subject_id: str

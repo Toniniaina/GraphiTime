@@ -13,6 +13,7 @@ from .types import (
     AuthPayload,
     CreateClassInput,
     CreateCourseInput,
+    CreateRoomInput,
     CreateProfessorInput,
     CreateProfessorUnavailabilityInput,
     CreateSubjectInput,
@@ -20,6 +21,7 @@ from .types import (
     DeleteProfessorInput,
     DeleteClassInput,
     DeleteProfessorUnavailabilityInput,
+    DeleteRoomInput,
     DeleteSubjectInput,
     LoginInput,
     Me,
@@ -29,12 +31,14 @@ from .types import (
     RenameProfessorInput,
     RenameSubjectInput,
     RegisterSchoolInput,
+    Room,
     School,
     SchoolClass,
     SetClassHomeRoomInput,
     Subject,
     Course,
     UpdateCourseInput,
+    UpdateRoomInput,
 )
 
 
@@ -194,6 +198,26 @@ class Mutation:
         svc = SchoolService(SchoolRepository(info.context.db_pool))
         cid, name, hr = svc.set_class_home_room(school_id, input.class_id, input.room_id)
         return SchoolClass(id=cid, name=name, home_room_id=hr)
+
+    @strawberry.mutation
+    def create_room(self, info: strawberry.Info[GraphQLContext, None], input: CreateRoomInput) -> Room:
+        school_id = _require_school_id(info)
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
+        rid, name, cap = svc.create_room(school_id, input.name, input.capacity)
+        return Room(id=rid, name=name, capacity=cap)
+
+    @strawberry.mutation
+    def update_room(self, info: strawberry.Info[GraphQLContext, None], input: UpdateRoomInput) -> Room:
+        school_id = _require_school_id(info)
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
+        rid, name, cap = svc.update_room(school_id, input.id, input.name, input.capacity)
+        return Room(id=rid, name=name, capacity=cap)
+
+    @strawberry.mutation
+    def delete_room(self, info: strawberry.Info[GraphQLContext, None], input: DeleteRoomInput) -> bool:
+        school_id = _require_school_id(info)
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
+        return svc.delete_room(school_id, input.id)
 
     @strawberry.mutation
     def create_subject(self, info: strawberry.Info[GraphQLContext, None], input: CreateSubjectInput) -> Subject:
