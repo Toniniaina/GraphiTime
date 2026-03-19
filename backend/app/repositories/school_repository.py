@@ -507,3 +507,105 @@ class SchoolRepository:
                     )
                     for r in (cur.fetchall() or [])
                 ]
+
+    def get_room_by_id(self, school_id: str, room_id: str) -> tuple[str, str, int] | None:
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, name, capacity FROM rooms WHERE school_id=%s AND id=%s",
+                    (school_id, room_id),
+                )
+                row = cur.fetchone()
+        if row is None:
+            return None
+        return (str(row[0]), str(row[1]), int(row[2]))
+
+    def get_room_by_name(self, school_id: str, name: str) -> tuple[str, str, int] | None:
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, name, capacity FROM rooms WHERE school_id=%s AND lower(name)=lower(%s)",
+                    (school_id, name),
+                )
+                row = cur.fetchone()
+        if row is None:
+            return None
+        return (str(row[0]), str(row[1]), int(row[2]))
+
+    def get_course_by_id(self, school_id: str, course_id: str) -> tuple[str, str, str, str] | None:
+        """Return (course_id, class_id, subject_id, professor_id)"""
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, class_id, subject_id, professor_id FROM courses WHERE school_id=%s AND id=%s",
+                    (school_id, course_id),
+                )
+                row = cur.fetchone()
+        if row is None:
+            return None
+        return (str(row[0]), str(row[1]), str(row[2]), str(row[3]))
+
+    def get_course_by_names(
+        self,
+        school_id: str,
+        class_name: str,
+        subject_name: str,
+        professor_name: str,
+    ) -> tuple[str, str, str, str] | None:
+        """Return (course_id, class_id, subject_id, professor_id) based on class/subject/professor names."""
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT crs.id, crs.class_id, crs.subject_id, crs.professor_id
+                    FROM courses crs
+                    JOIN classes c ON c.id = crs.class_id
+                    JOIN subjects s ON s.id = crs.subject_id
+                    JOIN professors p ON p.id = crs.professor_id
+                    WHERE crs.school_id=%s
+                      AND lower(c.name)=lower(%s)
+                      AND lower(s.name)=lower(%s)
+                      AND lower(p.name)=lower(%s)
+                    """,
+                    (school_id, class_name, subject_name, professor_name),
+                )
+                row = cur.fetchone()
+        if row is None:
+            return None
+        return (str(row[0]), str(row[1]), str(row[2]), str(row[3]))
+
+    def replace_scheduled_sessions(
+        self,
+        school_id: str,
+        rows: list[tuple[str, str, str, str, str, int, int, int]],
+    ) -> int:
+        """Replace all scheduled sessions for school.
+
+        rows items: (course_id, room_id, professor_id, class_id, subject_id, day_of_week, start_minute, end_minute)
+        """
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM scheduled_sessions WHERE school_id=%s", (school_id,))
+                for (course_id, room_id, professor_id, class_id, subject_id, dow, start_min, end_min) in rows:
+                    cur.execute(
+                        """
+                        INSERT INTO scheduled_sessions (
+                          school_id, course_id, room_id, professor_id, class_id, subject_id,
+                          day_of_week, start_minute, end_minute
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            school_id,
+                            course_id,
+                            room_id,
+                            professor_id,
+                            class_id,
+                            subject_id,
+                            dow,
+                            start_min,
+                            end_min,
+                        ),
+                    )
+            conn.commit()
+        return len(rows)
