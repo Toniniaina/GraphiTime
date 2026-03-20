@@ -70,8 +70,8 @@ export function PlanningPage({
     return m
   })()
 
-  const avgHours = classes.length
-    ? Array.from(hoursByClass.values()).reduce((a, b) => a + b, 0) / classes.length
+  const avgHours = hoursByClass.size
+    ? Array.from(hoursByClass.values()).reduce((a, b) => a + b, 0) / hoursByClass.size
     : 0
 
   const diff = hoursThisClass - avgHours

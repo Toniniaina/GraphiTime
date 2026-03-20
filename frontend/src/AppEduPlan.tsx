@@ -128,7 +128,7 @@ export default function AppEduPlan() {
 
       const START_MINUTE = 6 * 60
       const END_MINUTE = 18 * 60
-      const STEP_MINUTE = 30
+      const STEP_MINUTE = 60
 
       const timeSlots: string[] = []
       for (let m = START_MINUTE; m <= END_MINUTE; m += STEP_MINUTE) {
