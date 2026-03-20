@@ -20,8 +20,8 @@ import type {
   DbSubject,
   Professor,
 } from './components/eduplan/types'
-import * as XLSX from 'xlsx'
-import { NAV_ITEMS } from './components/eduplan/data'
+import * as XLSX from 'xlsx-js-style'
+import { DAYS, NAV_ITEMS, SUBJECT_COLORS } from './components/eduplan/data'
 
 export default function AppEduPlan() {
   const location = useLocation()
@@ -120,20 +120,213 @@ export default function AppEduPlan() {
   async function exportPlanningXlsx() {
     setPlanningIoError('')
     try {
-      const res = await fetch('/planning/export.csv', { method: 'GET', credentials: 'include' })
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`)
-      }
-      const csvText = await res.text()
-      // Parse CSV into array of arrays (rows)
-      const lines = csvText.trim().split('\n')
-      const rows = lines.map(line => {
-        // Simple CSV split (no quoted commas in data)
-        return line.split(',')
-      })
-      const ws = XLSX.utils.aoa_to_sheet(rows)
       const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, 'Planning')
+
+      const selectedClassId = quickClassId || classes[0]?.id || ''
+      const selectedClassName = classes.find((c) => c.id === selectedClassId)?.name || ''
+      const classSessions = scheduledSessions.filter((s) => s.course.schoolClass.id === selectedClassId)
+
+      const START_MINUTE = 6 * 60
+      const END_MINUTE = 18 * 60
+      const STEP_MINUTE = 30
+
+      const timeSlots: string[] = []
+      for (let m = START_MINUTE; m <= END_MINUTE; m += STEP_MINUTE) {
+        const hh = String(Math.floor(m / 60)).padStart(2, '0')
+        const mm = String(m % 60).padStart(2, '0')
+        timeSlots.push(`${hh}:${mm}`)
+      }
+
+      // Sheet 1: Planning (grid)
+      const grid: (string | number)[][] = []
+      const title = selectedClassName ? `Planning — ${selectedClassName}` : 'Planning'
+      grid.push([title, ...DAYS.map(() => '')])
+      grid.push(['Heure', ...DAYS])
+      for (const t of timeSlots) {
+        grid.push([t, ...DAYS.map(() => '')])
+      }
+
+      const wsPlanning = XLSX.utils.aoa_to_sheet(grid)
+      ;(wsPlanning as any)['!cols'] = [{ wch: 10 }, ...DAYS.map(() => ({ wch: 26 }))]
+      ;(wsPlanning as any)['!rows'] = [{ hpt: 22 }, { hpt: 18 }, ...timeSlots.map(() => ({ hpt: 28 }))]
+
+      const merges: any[] = []
+
+      const titleStyle = {
+        font: { bold: true, color: { rgb: '0D1F35' }, sz: 14 },
+        fill: { patternType: 'solid', fgColor: { rgb: 'D9E2F3' } },
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      }
+
+      const headerStyle = {
+        font: { bold: true, color: { rgb: '0D1F35' } },
+        fill: { patternType: 'solid', fgColor: { rgb: 'E9EEF5' } },
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+        border: {
+          top: { style: 'thin', color: { rgb: 'CBD5E1' } },
+          bottom: { style: 'thin', color: { rgb: 'CBD5E1' } },
+          left: { style: 'thin', color: { rgb: 'CBD5E1' } },
+          right: { style: 'thin', color: { rgb: 'CBD5E1' } },
+        },
+      }
+
+      const timeStyle = {
+        font: { bold: true, color: { rgb: '0D1F35' } },
+        fill: { patternType: 'solid', fgColor: { rgb: 'F7FAFF' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: {
+          top: { style: 'thin', color: { rgb: 'E2E8F0' } },
+          bottom: { style: 'thin', color: { rgb: 'E2E8F0' } },
+          left: { style: 'thin', color: { rgb: 'E2E8F0' } },
+          right: { style: 'thin', color: { rgb: 'E2E8F0' } },
+        },
+      }
+
+      const baseCellStyle = {
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+        border: {
+          top: { style: 'thin', color: { rgb: 'E2E8F0' } },
+          bottom: { style: 'dotted', color: { rgb: 'D1D5DB' } },
+          left: { style: 'thin', color: { rgb: 'E2E8F0' } },
+          right: { style: 'thin', color: { rgb: 'E2E8F0' } },
+        },
+      }
+
+      const toRgb = (hex: string) => {
+        const h = (hex || '').replace('#', '')
+        if (h.length === 6) return h.toUpperCase()
+        return '1A3A5C'
+      }
+
+      const lighten = (hex: string, amt = 0.72) => {
+        const h = toRgb(hex)
+        const r = parseInt(h.slice(0, 2), 16)
+        const g = parseInt(h.slice(2, 4), 16)
+        const b = parseInt(h.slice(4, 6), 16)
+        const lr = Math.round(r + (255 - r) * amt)
+        const lg = Math.round(g + (255 - g) * amt)
+        const lb = Math.round(b + (255 - b) * amt)
+        return `${lr.toString(16).padStart(2, '0')}${lg.toString(16).padStart(2, '0')}${lb
+          .toString(16)
+          .padStart(2, '0')}`.toUpperCase()
+      }
+
+      const setCell = (r: number, c: number, v: string, s?: any) => {
+        const addr = XLSX.utils.encode_cell({ r, c })
+        ;(wsPlanning as any)[addr] = {
+          t: 's',
+          v,
+          s: s ?? baseCellStyle,
+        }
+      }
+
+      // Title row + merge
+      setCell(0, 0, title, titleStyle)
+      for (let i = 0; i < DAYS.length; i++) {
+        setCell(0, 1 + i, '', titleStyle)
+      }
+      merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: DAYS.length } })
+
+      // Header row
+      setCell(1, 0, 'Heure', headerStyle)
+      for (let i = 0; i < DAYS.length; i++) {
+        setCell(1, 1 + i, DAYS[i], headerStyle)
+      }
+
+      // Time column
+      for (let i = 0; i < timeSlots.length; i++) {
+        setCell(2 + i, 0, timeSlots[i], timeStyle)
+      }
+
+      for (const ses of classSessions) {
+        const dayIdx = Math.max(0, Math.min(DAYS.length - 1, (ses.dayOfWeek ?? 1) - 1))
+        const startSlot = Math.round((ses.startMinute - START_MINUTE) / STEP_MINUTE)
+        const durationSlots = Math.max(1, Math.round((ses.endMinute - ses.startMinute) / STEP_MINUTE))
+
+        if (startSlot < 0 || startSlot >= timeSlots.length) continue
+
+        const r0 = 2 + startSlot // +2 for title+header
+        const c0 = 1 + dayIdx // +1 for time column
+
+        const subject = ses.course.subject.name
+        const teacher = ses.course.professor.name
+        const room = ses.room.name
+        const cellText = `${subject}\n${teacher}\n${room}`
+        const bg = lighten(SUBJECT_COLORS[subject] || '#1a3a5c')
+        const textColor = '0D1F35'
+        setCell(r0, c0, cellText, {
+          ...baseCellStyle,
+          font: { bold: true, color: { rgb: textColor } },
+          fill: { patternType: 'solid', fgColor: { rgb: bg } },
+          border: {
+            top: { style: 'medium', color: { rgb: '94A3B8' } },
+            bottom: { style: 'medium', color: { rgb: '94A3B8' } },
+            left: { style: 'medium', color: { rgb: '94A3B8' } },
+            right: { style: 'medium', color: { rgb: '94A3B8' } },
+          },
+        })
+
+        if (durationSlots > 1) {
+          const r1 = Math.min(r0 + durationSlots - 1, 2 + timeSlots.length - 1)
+          merges.push({ s: { r: r0, c: c0 }, e: { r: r1, c: c0 } })
+          for (let r = r0 + 1; r <= r1; r++) {
+            const a2 = XLSX.utils.encode_cell({ r, c: c0 })
+            ;(wsPlanning as any)[a2] = {
+              t: 's',
+              v: '',
+              s: {
+                ...baseCellStyle,
+                fill: { patternType: 'solid', fgColor: { rgb: bg } },
+                border: {
+                  top: { style: 'medium', color: { rgb: '94A3B8' } },
+                  bottom: { style: 'medium', color: { rgb: '94A3B8' } },
+                  left: { style: 'medium', color: { rgb: '94A3B8' } },
+                  right: { style: 'medium', color: { rgb: '94A3B8' } },
+                },
+              },
+            }
+          }
+        }
+      }
+      ;(wsPlanning as any)['!merges'] = merges
+
+      XLSX.utils.book_append_sheet(wb, wsPlanning, selectedClassName ? `Planning ${selectedClassName}` : 'Planning')
+
+      // Sheet 2: Données (raw)
+      const rawHeader = [
+        'session_id',
+        'day_of_week',
+        'start_minute',
+        'end_minute',
+        'room_id',
+        'room_name',
+        'course_id',
+        'class_id',
+        'class_name',
+        'subject_id',
+        'subject_name',
+        'professor_id',
+        'professor_name',
+      ]
+      const rawRows = classSessions.map((s) => [
+        s.id,
+        s.dayOfWeek,
+        s.startMinute,
+        s.endMinute,
+        s.room.id,
+        s.room.name,
+        s.course.id,
+        s.course.schoolClass.id,
+        s.course.schoolClass.name,
+        s.course.subject.id,
+        s.course.subject.name,
+        s.course.professor.id,
+        s.course.professor.name,
+      ])
+      const wsRaw = XLSX.utils.aoa_to_sheet([rawHeader, ...rawRows])
+      ;(wsRaw as any)['!cols'] = rawHeader.map(() => ({ wch: 16 }))
+      XLSX.utils.book_append_sheet(wb, wsRaw, 'Données')
+
       const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
       const blob = new Blob([out], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
