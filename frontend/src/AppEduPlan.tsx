@@ -21,7 +21,7 @@ import type {
   Professor,
 } from './components/eduplan/types'
 import * as XLSX from 'xlsx'
-import { NAV_ITEMS } from './components/eduplan/data'
+import { DAYS, HOURS, NAV_ITEMS } from './components/eduplan/data'
 
 export default function AppEduPlan() {
   const location = useLocation()
@@ -120,20 +120,94 @@ export default function AppEduPlan() {
   async function exportPlanningXlsx() {
     setPlanningIoError('')
     try {
-      const res = await fetch('/planning/export.csv', { method: 'GET', credentials: 'include' })
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`)
-      }
-      const csvText = await res.text()
-      // Parse CSV into array of arrays (rows)
-      const lines = csvText.trim().split('\n')
-      const rows = lines.map(line => {
-        // Simple CSV split (no quoted commas in data)
-        return line.split(',')
-      })
-      const ws = XLSX.utils.aoa_to_sheet(rows)
       const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, 'Planning')
+
+      const selectedClassId = quickClassId || classes[0]?.id || ''
+      const selectedClassName = classes.find((c) => c.id === selectedClassId)?.name || ''
+      const classSessions = scheduledSessions.filter((s) => s.course.schoolClass.id === selectedClassId)
+
+      const START_MINUTE = 6 * 60
+
+      // Sheet 1: Planning (grid)
+      const grid: (string | number)[][] = []
+      grid.push(['Heure', ...DAYS])
+      for (const h of HOURS) {
+        grid.push([h, ...DAYS.map(() => '')])
+      }
+
+      const wsPlanning = XLSX.utils.aoa_to_sheet(grid)
+      ;(wsPlanning as any)['!cols'] = [{ wch: 10 }, ...DAYS.map(() => ({ wch: 22 }))]
+
+      const merges: XLSX.Range[] = []
+      for (const ses of classSessions) {
+        const dayIdx = Math.max(0, Math.min(DAYS.length - 1, (ses.dayOfWeek ?? 1) - 1))
+        const startSlot = Math.round((ses.startMinute - START_MINUTE) / 60)
+        const durationSlots = Math.max(1, Math.round((ses.endMinute - ses.startMinute) / 60))
+
+        if (startSlot < 0 || startSlot >= HOURS.length) continue
+
+        const r0 = 1 + startSlot // +1 for header row
+        const c0 = 1 + dayIdx // +1 for time column
+
+        const subject = ses.course.subject.name
+        const teacher = ses.course.professor.name
+        const room = ses.room.name
+        const cellText = `${subject}\n${teacher}\n${room}`
+
+        const addr = XLSX.utils.encode_cell({ r: r0, c: c0 })
+        ;(wsPlanning as any)[addr] = {
+          t: 's',
+          v: cellText,
+        }
+
+        if (durationSlots > 1) {
+          const r1 = Math.min(r0 + durationSlots - 1, HOURS.length)
+          merges.push({ s: { r: r0, c: c0 }, e: { r: r1, c: c0 } })
+          for (let r = r0 + 1; r <= r1; r++) {
+            const a2 = XLSX.utils.encode_cell({ r, c: c0 })
+            ;(wsPlanning as any)[a2] = { t: 's', v: '' }
+          }
+        }
+      }
+      ;(wsPlanning as any)['!merges'] = merges
+
+      XLSX.utils.book_append_sheet(wb, wsPlanning, selectedClassName ? `Planning ${selectedClassName}` : 'Planning')
+
+      // Sheet 2: Données (raw)
+      const rawHeader = [
+        'session_id',
+        'day_of_week',
+        'start_minute',
+        'end_minute',
+        'room_id',
+        'room_name',
+        'course_id',
+        'class_id',
+        'class_name',
+        'subject_id',
+        'subject_name',
+        'professor_id',
+        'professor_name',
+      ]
+      const rawRows = classSessions.map((s) => [
+        s.id,
+        s.dayOfWeek,
+        s.startMinute,
+        s.endMinute,
+        s.room.id,
+        s.room.name,
+        s.course.id,
+        s.course.schoolClass.id,
+        s.course.schoolClass.name,
+        s.course.subject.id,
+        s.course.subject.name,
+        s.course.professor.id,
+        s.course.professor.name,
+      ])
+      const wsRaw = XLSX.utils.aoa_to_sheet([rawHeader, ...rawRows])
+      ;(wsRaw as any)['!cols'] = rawHeader.map(() => ({ wch: 16 }))
+      XLSX.utils.book_append_sheet(wb, wsRaw, 'Données')
+
       const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
       const blob = new Blob([out], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
