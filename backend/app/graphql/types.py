@@ -106,6 +106,38 @@ class ApplyScheduleResult:
     error: str | None = None
 
 
+@strawberry.type
+class ScheduleAlternativeExplanation:
+    day_of_week: int
+    start_minute: int
+    end_minute: int
+    score_delta: int
+    rejected_reasons: list[str]
+
+
+@strawberry.type
+class ScheduleSessionExplanation:
+    session_id: str
+    class_id: str
+    subject_id: str
+    professor_id: str
+    day_of_week: int
+    start_minute: int
+    end_minute: int
+    base_cost: int
+    lunch_penalty: int
+    hole_penalty: int
+    total_cost: int
+    alternatives: list[ScheduleAlternativeExplanation]
+
+
+@strawberry.type
+class SchedulePreviewResult:
+    sessions: list[ScheduledSession]
+    score: int
+    explanations: list[ScheduleSessionExplanation]
+
+
 @strawberry.input
 class CreateProfessorInput:
     name: str
@@ -231,3 +263,12 @@ class MoveScheduledSessionInput:
     start_minute: int
     end_minute: int
     room_id: str | None = None
+
+
+@strawberry.input
+class GenerateScheduleInput:
+    avoid_holes: bool = True
+    max_consecutive_hours_per_subject: int = 4
+    lunch_break_soft: bool = True
+    lunch_start_minute: int = 12 * 60
+    lunch_end_minute: int = 14 * 60

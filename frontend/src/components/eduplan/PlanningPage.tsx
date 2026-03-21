@@ -19,6 +19,8 @@ export function PlanningPage({
   onImportCsv,
   onImportFile,
   onMoveSession,
+  sessionExplanations,
+  onSelectSession,
   planningIoError,
 }: {
   professorsCount: number
@@ -33,6 +35,16 @@ export function PlanningPage({
   onImportCsv?: (file: File) => void | Promise<void>
   onImportFile?: (file: File) => void | Promise<void>
   onMoveSession?: (sessionId: string, dayOfWeek: number, startMinute: number, endMinute: number) => void | Promise<void>
+  sessionExplanations?: Record<
+    string,
+    {
+      totalCost: number
+      baseCost: number
+      lunchPenalty: number
+      holePenalty: number
+    }
+  >
+  onSelectSession?: (sessionId: string) => void
   planningIoError?: string
 }) {
   const [selectedWeek, setSelectedWeek] = useState(0)
@@ -352,6 +364,16 @@ export function PlanningPage({
                         backgroundColor: SUBJECT_COLORS[subject] || '#1a3a5c',
                         opacity: hoveredBlock && hoveredBlock !== localId ? 0.55 : 1,
                       }}
+                      title={(() => {
+                        const ex = sessionExplanations?.[ses.id]
+                        if (!ex) return ''
+                        const parts = [
+                          `Score: ${ex.totalCost}`,
+                          ex.lunchPenalty ? `Midi: +${ex.lunchPenalty}` : '',
+                          ex.holePenalty ? `Trous: +${ex.holePenalty}` : '',
+                        ].filter(Boolean)
+                        return parts.join(' \n')
+                      })()}
                       draggable={!!onMoveSession}
                       onDragStart={() => {
                         if (!onMoveSession) return
@@ -360,6 +382,7 @@ export function PlanningPage({
                       onDragEnd={() => {
                         dragSessionRef.current = null
                       }}
+                      onClick={() => onSelectSession?.(ses.id)}
                       onMouseEnter={() => setHoveredBlock(localId)}
                       onMouseLeave={() => setHoveredBlock(null)}
                     >

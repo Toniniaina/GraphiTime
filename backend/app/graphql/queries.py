@@ -5,16 +5,20 @@ from ..repositories.professor_repository import ProfessorRepository
 from ..repositories.school_repository import SchoolRepository
 from ..services.auth_service import AuthService
 from ..services.professor_service import ProfessorService
-from ..services.scheduling_service import SchedulingService
+from ..services.scheduling_service import GenerateScheduleParams, SchedulingService
 from ..services.school_service import SchoolService
 from .context import GraphQLContext
 from .types import (
     Course,
     DbStatus,
+    GenerateScheduleInput,
     Me,
     Professor,
     ProfessorUnavailability,
     Room,
+    ScheduleAlternativeExplanation,
+    SchedulePreviewResult,
+    ScheduleSessionExplanation,
     ScheduledSession,
     SchoolClass,
     School,
@@ -105,6 +109,81 @@ class Query:
                 )
             )
         return out
+
+    @strawberry.field
+    def generate_schedule_preview_detailed(
+        self,
+        info: strawberry.Info[GraphQLContext, None],
+        input: GenerateScheduleInput,
+    ) -> SchedulePreviewResult:
+        school_id = _require_school_id(info)
+        svc = SchedulingService(info.context.db_pool)
+        params = GenerateScheduleParams(
+            avoid_holes=input.avoid_holes,
+            max_consecutive_hours_per_subject=input.max_consecutive_hours_per_subject,
+            lunch_break_soft=input.lunch_break_soft,
+            lunch_start_minute=input.lunch_start_minute,
+            lunch_end_minute=input.lunch_end_minute,
+        )
+
+        generated, score, explanations_raw = svc.generate_preview_detailed(school_id, params)
+
+        out_sessions: list[ScheduledSession] = []
+        for ses in generated:
+            room = Room(id=ses.room.id, name=ses.room.name, capacity=ses.room.capacity)
+            course = Course(
+                id=ses.course.id,
+                required_hours_per_week=ses.course.required_hours_per_week,
+                subject=Subject(id=ses.course.subject_id, name=ses.course.subject_name),
+                school_class=SchoolClass(id=ses.course.class_id, name=ses.course.class_name),
+                professor=Professor(id=ses.course.professor_id, name=ses.course.professor_name),
+            )
+            out_sessions.append(
+                ScheduledSession(
+                    id=ses.id,
+                    day_of_week=ses.day_of_week,
+                    start_minute=ses.start_minute,
+                    end_minute=ses.end_minute,
+                    created_at=ses.created_at,
+                    course=course,
+                    room=room,
+                )
+            )
+
+        out_explanations: list[ScheduleSessionExplanation] = []
+        for ex in explanations_raw:
+            alts: list[ScheduleAlternativeExplanation] = []
+            for a in (ex.get("alternatives") or []):
+                if not isinstance(a, dict):
+                    continue
+                alts.append(
+                    ScheduleAlternativeExplanation(
+                        day_of_week=int(a.get("day_of_week") or 0),
+                        start_minute=int(a.get("start_minute") or 0),
+                        end_minute=int(a.get("end_minute") or 0),
+                        score_delta=int(a.get("score_delta") or 0),
+                        rejected_reasons=[str(r) for r in (a.get("rejected_reasons") or [])],
+                    )
+                )
+
+            out_explanations.append(
+                ScheduleSessionExplanation(
+                    session_id=str(ex.get("session_id") or ""),
+                    class_id=str(ex.get("class_id") or ""),
+                    subject_id=str(ex.get("subject_id") or ""),
+                    professor_id=str(ex.get("professor_id") or ""),
+                    day_of_week=int(ex.get("day_of_week") or 0),
+                    start_minute=int(ex.get("start_minute") or 0),
+                    end_minute=int(ex.get("end_minute") or 0),
+                    base_cost=int(ex.get("base_cost") or 0),
+                    lunch_penalty=int(ex.get("lunch_penalty") or 0),
+                    hole_penalty=int(ex.get("hole_penalty") or 0),
+                    total_cost=int(ex.get("total_cost") or 0),
+                    alternatives=alts,
+                )
+            )
+
+        return SchedulePreviewResult(sessions=out_sessions, score=score, explanations=out_explanations)
 
     @strawberry.field
     def generate_schedule_preview(self, info: strawberry.Info[GraphQLContext, None]) -> list[ScheduledSession]:
