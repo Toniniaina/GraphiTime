@@ -272,6 +272,105 @@ class SchoolRepository:
                     for r in (cur.fetchall() or [])
                 ]
 
+    def move_scheduled_session(
+        self,
+        school_id: str,
+        session_id: str,
+        day_of_week: int,
+        start_minute: int,
+        end_minute: int,
+        room_id: str | None = None,
+    ) -> bool:
+        if day_of_week < 1 or day_of_week > 7:
+            raise ValueError("day_of_week must be between 1 and 7")
+        if start_minute < 0 or start_minute >= 24 * 60:
+            raise ValueError("start_minute must be between 0 and 1439")
+        if end_minute <= 0 or end_minute > 24 * 60:
+            raise ValueError("end_minute must be between 1 and 1440")
+        if end_minute <= start_minute:
+            raise ValueError("end_minute must be > start_minute")
+
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT room_id, professor_id, class_id
+                    FROM scheduled_sessions
+                    WHERE school_id=%s AND id=%s
+                    """,
+                    (school_id, session_id),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    return False
+
+                existing_room_id = str(row[0])
+                professor_id = str(row[1])
+                class_id = str(row[2])
+
+                new_room_id = room_id or existing_room_id
+
+                cur.execute(
+                    """
+                    SELECT id, room_id, professor_id, class_id
+                    FROM scheduled_sessions
+                    WHERE school_id=%s
+                      AND day_of_week=%s
+                      AND id<>%s
+                      AND start_minute < %s
+                      AND end_minute > %s
+                      AND (room_id=%s OR professor_id=%s OR class_id=%s)
+                    LIMIT 1
+                    """,
+                    (
+                        school_id,
+                        day_of_week,
+                        session_id,
+                        end_minute,
+                        start_minute,
+                        new_room_id,
+                        professor_id,
+                        class_id,
+                    ),
+                )
+                conflict = cur.fetchone()
+                if conflict is not None:
+                    _cid = str(conflict[0])
+                    c_room = str(conflict[1])
+                    c_prof = str(conflict[2])
+                    c_class = str(conflict[3])
+                    reasons: list[str] = []
+                    if c_room == new_room_id:
+                        reasons.append("room")
+                    if c_prof == professor_id:
+                        reasons.append("professor")
+                    if c_class == class_id:
+                        reasons.append("class")
+                    reason = ",".join(reasons) if reasons else "conflict"
+                    raise RuntimeError(f"Schedule conflict ({reason}) with session {_cid}")
+
+                cur.execute(
+                    """
+                    UPDATE scheduled_sessions
+                    SET day_of_week=%s,
+                        start_minute=%s,
+                        end_minute=%s,
+                        room_id=%s
+                    WHERE school_id=%s AND id=%s
+                    """,
+                    (
+                        day_of_week,
+                        start_minute,
+                        end_minute,
+                        new_room_id,
+                        school_id,
+                        session_id,
+                    ),
+                )
+                updated = cur.rowcount or 0
+            conn.commit()
+        return updated > 0
+
     def create_course(
         self,
         school_id: str,
