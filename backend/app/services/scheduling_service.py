@@ -49,6 +49,15 @@ class GeneratedSessionRow:
     course: CourseRow
 
 
+@dataclass(frozen=True)
+class GenerateScheduleParams:
+    avoid_holes: bool = True
+    max_consecutive_hours_per_subject: int = 4
+    lunch_break_soft: bool = True
+    lunch_start_minute: int = 12 * 60
+    lunch_end_minute: int = 14 * 60
+
+
 def _time_to_minute(t: str) -> int:
     parts = t.split(":")
     if len(parts) < 2:
@@ -224,6 +233,16 @@ class SchedulingService:
         return True
 
     def generate_preview(self, school_id: str) -> list[GeneratedSessionRow]:
+        preview, _score, _explanations = self.generate_preview_detailed(school_id)
+        return preview
+
+    def generate_preview_detailed(
+        self,
+        school_id: str,
+        params: GenerateScheduleParams | None = None,
+    ) -> tuple[list[GeneratedSessionRow], int, list[dict[str, object]]]:
+        if params is None:
+            params = GenerateScheduleParams()
         courses = self._list_courses(school_id)
         rooms = self._list_rooms(school_id)
         unv = self._list_unavailability(school_id)
@@ -304,6 +323,9 @@ class SchedulingService:
             duration_h: int
             cost: int
 
+        def _overlaps_lunch(start: int, end: int) -> bool:
+            return params.lunch_break_soft and _overlaps(start, end, params.lunch_start_minute, params.lunch_end_minute)
+
         tasks: list[_Task] = []
         task_id = 0
         for class_id, class_courses in courses_by_class.items():
@@ -337,7 +359,10 @@ class SchedulingService:
                                 penalty += 1_000_000
                             if end > 1020:  # after 17:00
                                 penalty += 1_000_000
-                            cost = penalty + (dow - 1) * 100000 + start
+                            lunch_penalty = 0
+                            if _overlaps_lunch(start, end):
+                                lunch_penalty += 500_000
+                            cost = penalty + lunch_penalty + (dow - 1) * 100000 + start
                             slots.append(
                                 _Slot(
                                     id=slot_id,
@@ -407,19 +432,114 @@ class SchedulingService:
                     if _overlaps(s1.start_minute, s1.end_minute, s2.start_minute, s2.end_minute):
                         model.Add(v1 + v2 <= 1)
 
-        # Max 4h per subject per day (per class), excluding Étude.
-        by_class_day_subject: dict[tuple[str, int, str], list[tuple[int, cp_model.IntVar]]] = {}
-        for (tid, sid), var in x.items():
-            t = tasks[tid]
-            s = slots[sid]
-            subj_name = t.course.subject_name.lower()
-            if subj_name in {"étude", "etude"}:
-                continue
-            key = (t.class_id, s.day_of_week, t.course.subject_id)
-            by_class_day_subject.setdefault(key, []).append((t.duration_h, var))
+        # Soft objective components.
+        objective_terms: list[cp_model.LinearExpr] = []
 
-        for (_class_id, _dow, _subj_id), items in by_class_day_subject.items():
-            model.Add(sum(dur * var for (dur, var) in items) <= 4)
+        for (tid, sid), var in x.items():
+            s = slots[sid]
+            objective_terms.append(var * s.cost)
+
+        # Avoid holes (soft): penalize patterns occupied, empty, occupied in the same day for a class.
+        # We work on an hourly grid from 06:00 to 18:00 (exclusive), step 60.
+        HOLE_PENALTY = 10_000
+        if params.avoid_holes:
+            hours = list(range(360, 1080, 60))
+            occ: dict[tuple[str, int, int], cp_model.IntVar] = {}
+
+            for class_id in courses_by_class.keys():
+                for dow in range(1, 6):
+                    for h in hours:
+                        key = (class_id, dow, h)
+                        occ[key] = model.NewBoolVar(f"occ_{class_id}_{dow}_{h}")
+
+            # Link occ to chosen slots.
+            for class_id in courses_by_class.keys():
+                for dow in range(1, 6):
+                    for h in hours:
+                        key = (class_id, dow, h)
+                        relevant: list[cp_model.IntVar] = []
+                        for (tid, sid), var in x.items():
+                            t = tasks[tid]
+                            s = slots[sid]
+                            if t.class_id != class_id or s.day_of_week != dow:
+                                continue
+                            if s.start_minute <= h < s.end_minute:
+                                relevant.append(var)
+
+                        if not relevant:
+                            model.Add(occ[key] == 0)
+                        else:
+                            model.Add(occ[key] <= sum(relevant))
+                            for v in relevant:
+                                model.Add(occ[key] >= v)
+
+            for class_id in courses_by_class.keys():
+                for dow in range(1, 6):
+                    for i in range(1, len(hours) - 1):
+                        h_prev = hours[i - 1]
+                        h_mid = hours[i]
+                        h_next = hours[i + 1]
+                        o_prev = occ[(class_id, dow, h_prev)]
+                        o_mid = occ[(class_id, dow, h_mid)]
+                        o_next = occ[(class_id, dow, h_next)]
+                        hole = model.NewBoolVar(f"hole_{class_id}_{dow}_{h_mid}")
+                        model.Add(hole <= o_prev)
+                        model.Add(hole <= o_next)
+                        model.Add(hole <= 1 - o_mid)
+                        model.Add(hole >= o_prev + o_next - o_mid - 1)
+                        objective_terms.append(hole * HOLE_PENALTY)
+
+        # Max consecutive hours per subject (soft): penalize any 1h-grid window where a subject exceeds the limit.
+        # Applies per class/day/subject, excluding Étude.
+        CONSEC_PENALTY = 15_000
+        max_cons = max(1, int(params.max_consecutive_hours_per_subject))
+        if max_cons > 0:
+            hours = list(range(360, 1080, 60))
+            subj_occ: dict[tuple[str, int, str, int], cp_model.IntVar] = {}
+
+            subject_ids = sorted({c.subject_id for c in courses})
+            for class_id in courses_by_class.keys():
+                for dow in range(1, 6):
+                    for subj_id in subject_ids:
+                        subj_name = next((c.subject_name for c in courses if c.subject_id == subj_id), "").lower()
+                        if subj_name in {"étude", "etude"}:
+                            continue
+                        for h in hours:
+                            key = (class_id, dow, subj_id, h)
+                            subj_occ[key] = model.NewBoolVar(f"subjocc_{class_id}_{dow}_{subj_id}_{h}")
+
+            for class_id in courses_by_class.keys():
+                for dow in range(1, 6):
+                    for subj_id in subject_ids:
+                        subj_name = next((c.subject_name for c in courses if c.subject_id == subj_id), "").lower()
+                        if subj_name in {"étude", "etude"}:
+                            continue
+                        for h in hours:
+                            key = (class_id, dow, subj_id, h)
+                            relevant: list[cp_model.IntVar] = []
+                            for (tid, sid), var in x.items():
+                                t = tasks[tid]
+                                s = slots[sid]
+                                if t.class_id != class_id or s.day_of_week != dow:
+                                    continue
+                                if t.course.subject_id != subj_id:
+                                    continue
+                                if s.start_minute <= h < s.end_minute:
+                                    relevant.append(var)
+                            if not relevant:
+                                model.Add(subj_occ[key] == 0)
+                            else:
+                                model.Add(subj_occ[key] <= sum(relevant))
+                                for v in relevant:
+                                    model.Add(subj_occ[key] >= v)
+
+                        if max_cons + 1 <= len(hours):
+                            for i in range(0, len(hours) - (max_cons + 1) + 1):
+                                window_hours = hours[i : i + (max_cons + 1)]
+                                window_sum = sum(subj_occ[(class_id, dow, subj_id, wh)] for wh in window_hours)
+                                excess = model.NewIntVar(0, max_cons + 1, f"excess_{class_id}_{dow}_{subj_id}_{hours[i]}")
+                                model.Add(excess >= window_sum - max_cons)
+                                objective_terms.append(excess * CONSEC_PENALTY)
 
         # Professor conflict constraints across classes.
         # For each professor and each time-window, only one assigned.
@@ -439,11 +559,6 @@ class SchedulingService:
                     if _overlaps(s1.start_minute, s1.end_minute, s2.start_minute, s2.end_minute):
                         model.Add(v1 + v2 <= 1)
 
-        # Objective: pack earlier slots, minimizing "holes".
-        objective_terms: list[cp_model.LinearExpr] = []
-        for (tid, sid), var in x.items():
-            s = slots[sid]
-            objective_terms.append(var * s.cost)
         model.Minimize(sum(objective_terms))
 
         solver = cp_model.CpSolver()
@@ -470,6 +585,89 @@ class SchedulingService:
 
         chosen.sort(key=lambda it: (it[0].class_id, it[0].day_of_week, it[0].start_minute))
 
+        chosen_by_class_day: dict[tuple[str, int], list[tuple[_Slot, _Task]]] = {}
+        chosen_by_prof_day: dict[tuple[str, int], list[tuple[_Slot, _Task]]] = {}
+        for s, t in chosen:
+            chosen_by_class_day.setdefault((t.class_id, s.day_of_week), []).append((s, t))
+            chosen_by_prof_day.setdefault((t.course.professor_id, s.day_of_week), []).append((s, t))
+
+        for items in chosen_by_class_day.values():
+            items.sort(key=lambda it: it[0].start_minute)
+        for items in chosen_by_prof_day.values():
+            items.sort(key=lambda it: it[0].start_minute)
+
+        explanations: list[dict[str, object]] = []
+
+        # Level-2 style: propose some "best looking" alternative slots and explain rejections.
+        for s, t in chosen:
+            lunch_pen = 500_000 if _overlaps_lunch(s.start_minute, s.end_minute) else 0
+            base_cost = s.cost - lunch_pen
+            chosen_cost = int(s.cost)
+
+            # Check a few low-cost alternative slots.
+            candidates = [
+                ss
+                for ss in slots_by_class.get(t.class_id, [])
+                if ss.duration_h == t.duration_h and ss.day_of_week == s.day_of_week
+            ]
+            candidates.sort(key=lambda ss: ss.cost)
+            alts_out: list[dict[str, object]] = []
+
+            for ss in candidates[:25]:
+                if ss.start_minute == s.start_minute and ss.end_minute == s.end_minute:
+                    continue
+
+                reasons: list[str] = []
+                if not self._is_prof_available(unv, t.course.professor_id, ss.day_of_week, ss.start_minute, ss.end_minute):
+                    reasons.append("professor_unavailable")
+
+                for other_s, other_t in chosen_by_class_day.get((t.class_id, ss.day_of_week), []):
+                    if other_t.id == t.id:
+                        continue
+                    if _overlaps(ss.start_minute, ss.end_minute, other_s.start_minute, other_s.end_minute):
+                        reasons.append("class_conflict")
+                        break
+
+                for other_s, other_t in chosen_by_prof_day.get((t.course.professor_id, ss.day_of_week), []):
+                    if other_t.id == t.id:
+                        continue
+                    if _overlaps(ss.start_minute, ss.end_minute, other_s.start_minute, other_s.end_minute):
+                        reasons.append("professor_conflict")
+                        break
+
+                if ss.cost >= chosen_cost and not reasons:
+                    continue
+
+                if reasons:
+                    alts_out.append(
+                        {
+                            "day_of_week": ss.day_of_week,
+                            "start_minute": ss.start_minute,
+                            "end_minute": ss.end_minute,
+                            "score_delta": int(ss.cost - chosen_cost),
+                            "rejected_reasons": reasons,
+                        }
+                    )
+                if len(alts_out) >= 3:
+                    break
+
+            explanations.append(
+                {
+                    "session_id": f"PRE?{t.id}",
+                    "class_id": t.class_id,
+                    "subject_id": t.course.subject_id,
+                    "professor_id": t.course.professor_id,
+                    "day_of_week": s.day_of_week,
+                    "start_minute": s.start_minute,
+                    "end_minute": s.end_minute,
+                    "base_cost": int(base_cost),
+                    "lunch_penalty": int(lunch_pen),
+                    "hole_penalty": 0,
+                    "total_cost": int(chosen_cost),
+                    "alternatives": alts_out,
+                }
+            )
+
         for s, t in chosen:
             room = self._pick_room_for_class(rooms, t.course.subject_name, t.class_id, class_home_room_id)
             preview.append(
@@ -485,7 +683,12 @@ class SchedulingService:
             )
             sid_out += 1
 
-        return preview
+        # Fix explanation session ids to match preview ids (same order as chosen sort).
+        for i in range(min(len(explanations), len(preview))):
+            explanations[i]["session_id"] = preview[i].id
+
+        score = int(solver.ObjectiveValue())
+        return preview, score, explanations
 
     def apply_generated_schedule(self, school_id: str, generated: Iterable[GeneratedSessionRow]) -> None:
         with self._pool.connection() as conn:
