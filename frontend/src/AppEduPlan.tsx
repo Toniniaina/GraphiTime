@@ -392,6 +392,19 @@ export default function AppEduPlan() {
     await importPlanningCsv(file)
   }
 
+  async function moveScheduledSession(sessionId: string, dayOfWeek: number, startMinute: number, endMinute: number) {
+    setPlanningIoError('')
+    try {
+      await graphql<{ moveScheduledSession: boolean }>(
+        'mutation ($input: MoveScheduledSessionInput!) { moveScheduledSession(input: $input) }',
+        { input: { id: sessionId, dayOfWeek, startMinute, endMinute } },
+      )
+      await refreshAll()
+    } catch (e) {
+      setPlanningIoError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   async function createProfessor() {
     setProfError('')
     try {
@@ -856,6 +869,7 @@ export default function AppEduPlan() {
               onExportXlsx={exportPlanningXlsx}
               onImportCsv={importPlanningCsv}
               onImportFile={importPlanningFile}
+              onMoveSession={moveScheduledSession}
               planningIoError={planningIoError}
             />
           }

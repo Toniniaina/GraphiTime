@@ -25,6 +25,7 @@ from .types import (
     DeleteSubjectInput,
     LoginInput,
     Me,
+    MoveScheduledSessionInput,
     Professor,
     ProfessorUnavailability,
     RenameClassInput,
@@ -310,3 +311,16 @@ class Mutation:
             return ApplyScheduleResult(ok=True, count=len(generated))
         except Exception as e:
             return ApplyScheduleResult(ok=False, count=0, error=str(e))
+
+    @strawberry.mutation
+    def move_scheduled_session(self, info: strawberry.Info[GraphQLContext, None], input: MoveScheduledSessionInput) -> bool:
+        school_id = _require_school_id(info)
+        svc = SchoolService(SchoolRepository(info.context.db_pool))
+        return svc.move_scheduled_session(
+            school_id,
+            input.id,
+            input.day_of_week,
+            input.start_minute,
+            input.end_minute,
+            input.room_id,
+        )

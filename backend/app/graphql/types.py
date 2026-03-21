@@ -222,3 +222,12 @@ class RegisterSchoolInput:
 class LoginInput:
     login: str
     password: str
+
+
+@strawberry.input
+class MoveScheduledSessionInput:
+    id: str
+    day_of_week: int
+    start_minute: int
+    end_minute: int
+    room_id: str | None = None

@@ -108,3 +108,21 @@ class SchoolService:
 
     def list_scheduled_sessions(self, school_id: str):
         return self._repo.list_scheduled_sessions(school_id)
+
+    def move_scheduled_session(
+        self,
+        school_id: str,
+        session_id: str,
+        day_of_week: int,
+        start_minute: int,
+        end_minute: int,
+        room_id: str | None = None,
+    ) -> bool:
+        return self._repo.move_scheduled_session(
+            school_id,
+            session_id,
+            day_of_week,
+            start_minute,
+            end_minute,
+            room_id,
+        )

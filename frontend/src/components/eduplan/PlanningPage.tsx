@@ -18,6 +18,7 @@ export function PlanningPage({
   onExportXlsx,
   onImportCsv,
   onImportFile,
+  onMoveSession,
   planningIoError,
 }: {
   professorsCount: number
@@ -31,11 +32,13 @@ export function PlanningPage({
   onExportXlsx?: () => void | Promise<void>
   onImportCsv?: (file: File) => void | Promise<void>
   onImportFile?: (file: File) => void | Promise<void>
+  onMoveSession?: (sessionId: string, dayOfWeek: number, startMinute: number, endMinute: number) => void | Promise<void>
   planningIoError?: string
 }) {
   const [selectedWeek, setSelectedWeek] = useState(0)
   const [hoveredBlock, setHoveredBlock] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
+  const dragSessionRef = useRef<{ id: string; duration: number } | null>(null)
 
   const todayIdx = (() => {
     const jsDay = new Date().getDay()
@@ -122,6 +125,8 @@ export function PlanningPage({
 
     return out
   })()
+
+  const displaySessions = onMoveSession ? classSessions : mergedSessions
 
   const timeToMinute = (t: string) => {
     const [hh, mm] = t.split(':').map((v) => Number(v))
@@ -301,11 +306,31 @@ export function PlanningPage({
             ))}
           </div>
           {DAYS.map((day, dayIdx) => (
-            <div key={day} style={S.dayColumn}>
+            <div
+              key={day}
+              style={S.dayColumn}
+              onDragOver={(e) => {
+                if (!onMoveSession) return
+                e.preventDefault()
+              }}
+              onDrop={(e) => {
+                if (!onMoveSession) return
+                const d = dragSessionRef.current
+                if (!d) return
+
+                const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
+                const y = e.clientY - rect.top
+                const hoursFromStart = Math.max(0, Math.round(y / PX_PER_HOUR))
+                const newStart = START_MINUTE + hoursFromStart * 60
+                const newEnd = newStart + d.duration
+                void onMoveSession(d.id, dayIdx + 1, newStart, newEnd)
+                dragSessionRef.current = null
+              }}
+            >
               {HOURS.map((_, i) => (
                 <div key={i} style={S.hourLine} />
               ))}
-              {mergedSessions
+              {displaySessions
                 .filter((ses) => (ses.dayOfWeek ?? 1) - 1 === dayIdx)
                 .map((ses, idx) => {
                   const subject = ses.course.subject.name
@@ -327,6 +352,14 @@ export function PlanningPage({
                         backgroundColor: SUBJECT_COLORS[subject] || '#1a3a5c',
                         opacity: hoveredBlock && hoveredBlock !== localId ? 0.55 : 1,
                       }}
+                      draggable={!!onMoveSession}
+                      onDragStart={() => {
+                        if (!onMoveSession) return
+                        dragSessionRef.current = { id: ses.id, duration: ses.endMinute - ses.startMinute }
+                      }}
+                      onDragEnd={() => {
+                        dragSessionRef.current = null
+                      }}
                       onMouseEnter={() => setHoveredBlock(localId)}
                       onMouseLeave={() => setHoveredBlock(null)}
                     >
@@ -345,7 +378,7 @@ export function PlanningPage({
       </div>
 
       <div style={S.legend}>
-        {Array.from(new Set(mergedSessions.map((s) => s.course.subject.name))).map((subj) => (
+        {Array.from(new Set(displaySessions.map((s) => s.course.subject.name))).map((subj) => (
           <div key={subj} style={S.legendItem}>
             <div style={{ ...S.legendDot, background: SUBJECT_COLORS[subj] || '#1a3a5c' }} />
             <span style={S.legendText}>{subj}</span>
