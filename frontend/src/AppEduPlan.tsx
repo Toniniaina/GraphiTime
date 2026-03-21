@@ -401,7 +401,23 @@ export default function AppEduPlan() {
       )
       await refreshAll()
     } catch (e) {
-      setPlanningIoError(e instanceof Error ? e.message : String(e))
+      const raw = e instanceof Error ? e.message : String(e)
+      const m = raw.match(/Schedule conflict \(([^)]*)\) with session ([A-Za-z0-9_-]+)/i)
+      if (m) {
+        const reasonsRaw = (m[1] || '').trim()
+        const conflictId = (m[2] || '').trim()
+        const reasons = reasonsRaw
+          .split(',')
+          .map((r) => r.trim().toLowerCase())
+          .filter(Boolean)
+          .map((r) => (r === 'room' ? 'salle' : r === 'professor' ? 'professeur' : r === 'class' ? 'classe' : r))
+
+        const reasonsLabel = reasons.length ? reasons.join(', ') : 'ressource'
+        setPlanningIoError(`Conflit de planning : ${reasonsLabel} déjà occupé(e) sur ce créneau.\nSéance en conflit : ${conflictId}`)
+        return
+      }
+
+      setPlanningIoError(raw)
     }
   }
 
