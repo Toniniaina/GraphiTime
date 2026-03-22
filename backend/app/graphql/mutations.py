@@ -72,7 +72,6 @@ class Mutation:
                 httponly=True,
                 samesite="lax",
                 secure=False,
-                expires=int(expires_at.timestamp()),
                 path="/",
             )
 
@@ -97,7 +96,6 @@ class Mutation:
                 httponly=True,
                 samesite="lax",
                 secure=False,
-                expires=int(expires_at.timestamp()),
                 path="/",
             )
 
