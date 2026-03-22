@@ -97,7 +97,22 @@ export function AlgoTestPage({
     if (v === 'class_conflict') return 'Conflit avec un autre cours de la classe'
     if (v === 'professor_conflict') return 'Conflit avec un autre cours du professeur'
     if (v === 'professor_unavailable') return 'Professeur indisponible'
+    if (v === 'lunch_overlap') return 'Tombe sur la pause midi (préférence)'
+    if (v === 'higher_cost') return 'Moins bon score (préférences)'
     return r
+  }
+
+  const toHHMM = (minute: number) => {
+    const m = Math.max(0, Math.floor(Number(minute) || 0))
+    const hh = Math.floor(m / 60)
+    const mm = m % 60
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+  }
+
+  const dayLabel = (dow: number) => {
+    const d = Number(dow) || 0
+    const map: Record<number, string> = { 1: 'Lun', 2: 'Mar', 3: 'Mer', 4: 'Jeu', 5: 'Ven', 6: 'Sam', 7: 'Dim' }
+    return map[d] ?? `J${d}`
   }
 
   async function applyToDb() {
@@ -225,7 +240,7 @@ export function AlgoTestPage({
                       }}
                     >
                       <div style={{ fontSize: 12, fontWeight: 800, color: '#0d1f35' }}>
-                        J{a?.dayOfWeek} {a?.startMinute}–{a?.endMinute} (Δ {a?.scoreDelta})
+                        {dayLabel(a?.dayOfWeek)} {toHHMM(a?.startMinute)}–{toHHMM(a?.endMinute)} (Δ {a?.scoreDelta})
                       </div>
                       <div style={{ fontSize: 12, color: 'rgba(13,31,53,0.75)', whiteSpace: 'pre-wrap' }}>
                         {(a?.rejectedReasons ?? []).map((r: string) => `- ${explainReason(r)}`).join('\n')}
