@@ -84,7 +84,7 @@ class SchedulingService:
     def __init__(self, pool: ConnectionPool) -> None:
         self._pool = pool
 
-    def _list_courses(self) -> list[CourseRow]:
+    def _list_courses(self, school_id: str) -> list[CourseRow]:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -102,8 +102,10 @@ class SchedulingService:
                     JOIN subjects s ON s.id = crs.subject_id
                     JOIN classes c ON c.id = crs.class_id
                     JOIN professors p ON p.id = crs.professor_id
+                    WHERE crs.school_id = %s
                     ORDER BY c.name, s.name
-                    """
+                    """,
+                    (school_id,),
                 )
                 rows = cur.fetchall() or []
 
@@ -123,14 +125,17 @@ class SchedulingService:
             )
         return out
 
-    def _list_rooms(self) -> list[RoomRow]:
+    def _list_rooms(self, school_id: str) -> list[RoomRow]:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT id, name, capacity FROM rooms ORDER BY name")
+                cur.execute(
+                    "SELECT id, name, capacity FROM rooms WHERE school_id = %s ORDER BY name",
+                    (school_id,),
+                )
                 rows = cur.fetchall() or []
         return [RoomRow(id=str(i), name=str(n), capacity=int(c)) for (i, n, c) in rows]
 
-    def _list_class_home_rooms(self) -> dict[str, str]:
+    def _list_class_home_rooms(self, school_id: str) -> dict[str, str]:
         """Return mapping class_id -> room_id for the class main room."""
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
@@ -138,8 +143,10 @@ class SchedulingService:
                     """
                     SELECT c.id, c.home_room_id
                     FROM classes c
+                    WHERE c.school_id = %s
                     ORDER BY c.name
-                    """
+                    """,
+                    (school_id,),
                 )
                 rows = cur.fetchall() or []
 
@@ -150,7 +157,7 @@ class SchedulingService:
             out[str(cid)] = str(rid)
         return out
 
-    def _list_unavailability(self) -> list[UnavailabilityRow]:
+    def _list_unavailability(self, school_id: str) -> list[UnavailabilityRow]:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -164,8 +171,10 @@ class SchedulingService:
                       u.end_time
                     FROM professor_unavailability u
                     JOIN professors p ON p.id = u.professor_id
+                    WHERE u.school_id = %s
                     ORDER BY p.name, u.day_of_week, u.start_time
-                    """
+                    """,
+                    (school_id,),
                 )
                 rows = cur.fetchall() or []
 
@@ -240,7 +249,7 @@ class SchedulingService:
         if not rooms:
             raise RuntimeError("No rooms found")
 
-        class_home_room_id = self._list_class_home_rooms()
+        class_home_room_id = self._list_class_home_rooms(school_id)
 
         # Quick feasibility check (approx): total teaching hours per professor must fit in the week's capacity.
         # Weekly capacity per professor (by our allowed windows): 5 days * (6h morning + 4h afternoon) = 50h.
@@ -599,7 +608,7 @@ class SchedulingService:
             candidates = [
                 ss
                 for ss in slots_by_class.get(t.class_id, [])
-                if ss.duration_h == t.duration_h and ss.day_of_week == s.day_of_week
+                if ss.duration_h == t.duration_h
             ]
             candidates.sort(key=lambda ss: ss.cost)
             alts_out: list[dict[str, object]] = []
@@ -609,6 +618,8 @@ class SchedulingService:
                     continue
 
                 reasons: list[str] = []
+                if _overlaps_lunch(ss.start_minute, ss.end_minute):
+                    reasons.append("lunch_overlap")
                 if not self._is_prof_available(unv, t.course.professor_id, ss.day_of_week, ss.start_minute, ss.end_minute):
                     reasons.append("professor_unavailable")
 
@@ -626,7 +637,12 @@ class SchedulingService:
                         reasons.append("professor_conflict")
                         break
 
-                if ss.cost >= chosen_cost and not reasons:
+                if int(ss.cost) > chosen_cost:
+                    reasons.append("higher_cost")
+
+                # Keep only alternatives that are either better but infeasible (reasons like conflicts/unavailability),
+                # or worse but interesting (e.g. lunch overlap), to explain trade-offs.
+                if not reasons:
                     continue
 
                 if reasons:

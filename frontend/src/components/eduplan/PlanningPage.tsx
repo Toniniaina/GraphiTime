@@ -163,6 +163,13 @@ export function PlanningPage({
     return false
   }
 
+  const toHHMM = (minute: number) => {
+    const m = Math.max(0, Math.floor(Number(minute) || 0))
+    const hh = Math.floor(m / 60)
+    const mm = m % 60
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+  }
+
   return (
     <div style={S.pageWrap}>
       <header style={S.topBar}>
@@ -368,8 +375,9 @@ export function PlanningPage({
                         const ex = sessionExplanations?.[ses.id]
                         if (!ex) return ''
                         const parts = [
+                          `${toHHMM(ses.startMinute)}–${toHHMM(ses.endMinute)}`,
                           `Score: ${ex.totalCost}`,
-                          ex.lunchPenalty ? `Midi: +${ex.lunchPenalty}` : '',
+                          ex.lunchPenalty ? `Pause midi: +${ex.lunchPenalty}` : '',
                           ex.holePenalty ? `Trous: +${ex.holePenalty}` : '',
                         ].filter(Boolean)
                         return parts.join(' \n')
