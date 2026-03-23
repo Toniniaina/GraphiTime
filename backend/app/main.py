@@ -3,7 +3,10 @@ import io
 
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.pdfgen import canvas
 from strawberry.fastapi import GraphQLRouter
 
 from .graphql.schema import schema
@@ -68,7 +71,7 @@ def create_app() -> FastAPI:
         return school_id
 
     @app.get("/planning/export.csv")
-    def export_planning_csv(request: Request) -> StreamingResponse:
+    def export_planning_csv(request: Request) -> Response:
         school_id = _require_school_id(request)
         svc = SchoolService(SchoolRepository(request.app.state.db_pool))
         rows = svc.list_scheduled_sessions(school_id)
@@ -131,7 +134,183 @@ def create_app() -> FastAPI:
 
         data = buf.getvalue().encode("utf-8")
         headers = {"Content-Disposition": 'attachment; filename="planning.csv"'}
-        return StreamingResponse(io.BytesIO(data), media_type="text/csv; charset=utf-8", headers=headers)
+        return Response(content=data, media_type="text/csv; charset=utf-8", headers=headers)
+
+    @app.get("/planning/export.pdf")
+    def export_planning_pdf(request: Request) -> Response:
+        school_id = _require_school_id(request)
+        svc = SchoolService(SchoolRepository(request.app.state.db_pool))
+
+        classes = svc.list_classes(school_id)
+        sessions = svc.list_scheduled_sessions(school_id)
+
+        def _to_hhmm(minute: int) -> str:
+            m = max(0, int(minute))
+            hh = m // 60
+            mm = m % 60
+            return f"{hh:02d}:{mm:02d}"
+
+        def _hex_color(value: str) -> colors.Color:
+            s = (value or "").strip().lstrip("#")
+            if len(s) != 6:
+                return colors.HexColor("#1a3a5c")
+            try:
+                return colors.HexColor(f"#{s}")
+            except Exception:
+                return colors.HexColor("#1a3a5c")
+
+        subject_colors: dict[str, colors.Color] = {
+            "Mathématiques": _hex_color("#1a3a5c"),
+            "Physique-Chimie": _hex_color("#c8922a"),
+            "Français": _hex_color("#2d6a4f"),
+            "Histoire-Géo": _hex_color("#7b3f6e"),
+            "Anglais": _hex_color("#c0392b"),
+            "SVT": _hex_color("#1a6b8a"),
+            "EPS": _hex_color("#e67e22"),
+            "Philosophie": _hex_color("#5d4e75"),
+            "Informatique": _hex_color("#2c7873"),
+        }
+
+        days = [
+            (1, "Lundi"),
+            (2, "Mardi"),
+            (3, "Mercredi"),
+            (4, "Jeudi"),
+            (5, "Vendredi"),
+            (6, "Samedi"),
+        ]
+
+        start_minute = 6 * 60
+        end_minute = 18 * 60
+        hour_step = 60
+
+        buf = io.BytesIO()
+        c = canvas.Canvas(buf, pagesize=landscape(A4))
+        page_w, page_h = landscape(A4)
+        margin = 28
+        header_h = 34
+
+        time_col_w = 56
+        day_col_w = (page_w - margin * 2 - time_col_w) / len(days)
+        hours = list(range(start_minute, end_minute + 1, hour_step))
+        grid_h = 28 * (len(hours) - 1)
+        grid_top = page_h - margin - header_h
+        grid_bottom = grid_top - grid_h
+
+        def _y_for_minute(m: int) -> float:
+            mm = max(start_minute, min(end_minute, int(m)))
+            frac = (mm - start_minute) / 60
+            return grid_top - frac * 28
+
+        sessions_by_class: dict[str, list[tuple]] = {}
+        for row in sessions:
+            (
+                _ses_id,
+                _dow,
+                _start,
+                _end,
+                _created_at,
+                _room_id,
+                _room_name,
+                _room_cap,
+                _crs_id,
+                _req,
+                _sub_id,
+                _sub_name,
+                cls_id,
+                _cls_name,
+                _prof_id,
+                _prof_name,
+            ) = row
+            sessions_by_class.setdefault(cls_id, []).append(row)
+
+        for cls_id, cls_name, _home_room_id in classes:
+            c.setFillColor(colors.HexColor("#0d1f35"))
+            c.setFont("Helvetica-Bold", 14)
+            c.drawString(margin, page_h - margin - 14, f"Planning — {cls_name}")
+
+            c.setStrokeColor(colors.Color(0.05, 0.12, 0.2, alpha=0.16))
+            c.setLineWidth(1)
+            c.roundRect(margin, grid_bottom - 8, page_w - margin * 2, grid_h + header_h + 16, 10, stroke=1, fill=0)
+
+            c.setFillColor(colors.white)
+            c.rect(margin, grid_top, page_w - margin * 2, header_h, stroke=0, fill=1)
+
+            c.setStrokeColor(colors.Color(0.05, 0.12, 0.2, alpha=0.10))
+            c.line(margin + time_col_w, grid_bottom, margin + time_col_w, grid_top + header_h)
+            for i in range(len(days) + 1):
+                x = margin + time_col_w + i * day_col_w
+                c.line(x, grid_bottom, x, grid_top + header_h)
+
+            c.setFont("Helvetica-Bold", 9)
+            c.setFillColor(colors.HexColor("#0d1f35"))
+            for i, (_d, label) in enumerate(days):
+                x0 = margin + time_col_w + i * day_col_w
+                c.drawCentredString(x0 + day_col_w / 2, grid_top + header_h / 2 + 2, label)
+
+            c.setFont("Helvetica", 8)
+            c.setFillColor(colors.Color(0.05, 0.12, 0.2, alpha=0.55))
+            c.setStrokeColor(colors.Color(0.05, 0.12, 0.2, alpha=0.12))
+            for idx, h in enumerate(hours[:-1]):
+                y = grid_top - idx * 28
+                c.setDash(2, 2)
+                c.line(margin, y, page_w - margin, y)
+                c.setDash()
+                c.drawRightString(margin + time_col_w - 8, y - 10, _to_hhmm(h))
+
+            rows = sessions_by_class.get(cls_id, [])
+            for r in rows:
+                (
+                    ses_id,
+                    dow,
+                    start_m,
+                    end_m,
+                    _created_at,
+                    _room_id,
+                    room_name,
+                    _room_cap,
+                    _crs_id,
+                    _req,
+                    _sub_id,
+                    subject_name,
+                    _cls_id,
+                    _cls_name2,
+                    _prof_id,
+                    professor_name,
+                ) = r
+
+                if dow < 1 or dow > len(days):
+                    continue
+                if end_m <= start_minute or start_m >= end_minute:
+                    continue
+
+                x0 = margin + time_col_w + (dow - 1) * day_col_w + 6
+                x1 = x0 + day_col_w - 12
+                y_top = _y_for_minute(start_m) - 3
+                y_bottom = _y_for_minute(end_m) + 3
+                h = max(14, y_top - y_bottom)
+
+                fill = subject_colors.get(subject_name, colors.HexColor("#1a3a5c"))
+                c.setFillColor(fill)
+                c.setStrokeColor(colors.Color(1, 1, 1, alpha=0.16))
+                c.roundRect(x0, y_bottom, x1 - x0, h, 7, stroke=1, fill=1)
+
+                c.setFillColor(colors.white)
+                c.setFont("Helvetica-Bold", 8.5)
+                c.drawString(x0 + 6, y_top - 12, subject_name[:40])
+                c.setFont("Helvetica", 7.5)
+                c.drawString(x0 + 6, y_top - 24, professor_name[:44])
+                c.drawString(x0 + 6, y_top - 34, room_name[:44])
+                c.drawString(x0 + 6, y_bottom + 6, f"{_to_hhmm(start_m)}–{_to_hhmm(end_m)}")
+
+            c.showPage()
+
+        c.save()
+        data = buf.getvalue()
+        if len(data) < 100:
+            raise HTTPException(status_code=500, detail="PDF generation failed")
+        headers = {"Content-Disposition": 'attachment; filename="planning.pdf"'}
+        return Response(content=data, media_type="application/pdf", headers=headers)
 
     @app.post("/planning/import.csv")
     async def import_planning_csv(

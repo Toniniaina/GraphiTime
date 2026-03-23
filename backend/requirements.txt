@@ -8,3 +8,4 @@ psycopg-pool==3.2.3
 ortools==9.10.4067
 passlib[bcrypt]==1.7.4
 bcrypt==3.2.2
+reportlab==4.2.2
