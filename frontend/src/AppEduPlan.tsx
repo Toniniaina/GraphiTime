@@ -117,6 +117,30 @@ export default function AppEduPlan() {
     }
   }
 
+  function exportPlanningPdf() {
+    setPlanningIoError('')
+
+    ;(async () => {
+      try {
+        const res = await fetch('/planning/export.pdf', { method: 'GET', credentials: 'include' })
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`)
+        }
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'planning.pdf'
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+      } catch (e) {
+        setPlanningIoError(e instanceof Error ? e.message : String(e))
+      }
+    })()
+  }
+
   async function exportPlanningXlsx() {
     setPlanningIoError('')
     try {
@@ -883,6 +907,7 @@ export default function AppEduPlan() {
               setSelectedClass={setQuickClassId}
               onExportCsv={exportPlanningCsv}
               onExportXlsx={exportPlanningXlsx}
+              onExportPdf={exportPlanningPdf}
               onImportCsv={importPlanningCsv}
               onImportFile={importPlanningFile}
               onMoveSession={moveScheduledSession}

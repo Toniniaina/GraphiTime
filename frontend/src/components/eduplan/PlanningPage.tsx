@@ -16,6 +16,7 @@ export function PlanningPage({
   onAddClick,
   onExportCsv,
   onExportXlsx,
+  onExportPdf,
   onImportCsv,
   onImportFile,
   onMoveSession,
@@ -32,6 +33,7 @@ export function PlanningPage({
   onAddClick?: () => void
   onExportCsv?: () => void | Promise<void>
   onExportXlsx?: () => void | Promise<void>
+  onExportPdf?: () => void | Promise<void>
   onImportCsv?: (file: File) => void | Promise<void>
   onImportFile?: (file: File) => void | Promise<void>
   onMoveSession?: (sessionId: string, dayOfWeek: number, startMinute: number, endMinute: number) => void | Promise<void>
@@ -182,7 +184,7 @@ export function PlanningPage({
           </div>
         </div>
         <div style={S.topBarRight}>
-          {onExportCsv || onExportXlsx || onImportCsv || onImportFile ? (
+          {onExportCsv || onExportXlsx || onExportPdf || onImportCsv || onImportFile ? (
             <>
               {onExportCsv ? (
                 <button
@@ -217,6 +219,24 @@ export function PlanningPage({
                   onClick={() => void onExportXlsx()}
                 >
                   Export Excel
+                </button>
+              ) : null}
+
+              {onExportPdf ? (
+                <button
+                  style={{
+                    background: 'white',
+                    border: '1px solid rgba(13,31,53,0.16)',
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    fontSize: 12,
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    color: '#0d1f35',
+                  }}
+                  onClick={() => void onExportPdf()}
+                >
+                  Export PDF
                 </button>
               ) : null}
 
