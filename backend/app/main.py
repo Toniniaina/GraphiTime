@@ -35,6 +35,17 @@ def create_app() -> FastAPI:
                 cur.execute("SELECT 1")
                 cur.fetchone()
 
+        if settings.debug:
+            with app.state.db_pool.connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE auth_sessions
+                        SET revoked_at = now()
+                        WHERE revoked_at IS NULL
+                        """
+                    )
+
     @app.on_event("shutdown")
     def _shutdown() -> None:
         pool = getattr(app.state, "db_pool", None)
