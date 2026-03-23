@@ -117,6 +117,210 @@ export default function AppEduPlan() {
     }
   }
 
+  function exportPlanningPdf() {
+    setPlanningIoError('')
+
+    const START_MINUTE = 6 * 60
+    const END_MINUTE = 18 * 60
+    const PX_PER_HOUR = 64
+
+    const toHHMM = (minute: number) => {
+      const m = Math.max(0, Math.floor(Number(minute) || 0))
+      const hh = Math.floor(m / 60)
+      const mm = m % 60
+      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+    }
+
+    const escapeHtml = (s: string) =>
+      String(s)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;')
+
+    try {
+      const w = window.open('', '_blank', 'noopener,noreferrer')
+      if (!w) {
+        throw new Error('Popup bloqué: autorise les popups pour exporter en PDF')
+      }
+
+      const headerHtml = `
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Planning — Export PDF</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: Georgia, 'Times New Roman', serif;
+      background: #f4f0e8;
+      color: #0d1f35;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .page {
+      padding: 18px 18px 22px;
+      page-break-after: always;
+    }
+    .page:last-child { page-break-after: auto; }
+    .titleRow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+    .title { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    .meta { font-size: 12px; color: rgba(13,31,53,0.55); }
+    .sheet {
+      border: 1px solid rgba(13,31,53,0.10);
+      border-radius: 14px;
+      background: white;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(13,31,53,0.06);
+    }
+    .gridHeader {
+      display: flex;
+      border-bottom: 2px solid rgba(13,31,53,0.08);
+      background: white;
+    }
+    .timeCol { width: 64px; flex-shrink: 0; }
+    .dayHeader {
+      flex: 1;
+      padding: 12px 10px;
+      text-align: center;
+      border-left: 1px solid rgba(13,31,53,0.06);
+    }
+    .dayName { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; }
+    .gridBody { display: flex; }
+    .timeCell {
+      height: ${PX_PER_HOUR}px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      padding-right: 10px;
+      padding-top: 6px;
+      font-size: 11px;
+      color: rgba(13,31,53,0.35);
+      border-bottom: 1px dashed rgba(13,31,53,0.08);
+    }
+    .dayCol {
+      flex: 1;
+      position: relative;
+      min-height: ${(END_MINUTE - START_MINUTE) / 60 * PX_PER_HOUR}px;
+      border-left: 1px solid rgba(13,31,53,0.06);
+    }
+    .hourLine {
+      height: ${PX_PER_HOUR}px;
+      border-bottom: 1px dashed rgba(13,31,53,0.08);
+    }
+    .block {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: white;
+      box-shadow: 0 10px 18px rgba(13,31,53,0.12);
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.16);
+    }
+    .sub { font-weight: 900; font-size: 13px; margin-bottom: 4px; }
+    .line { font-size: 11px; opacity: 0.92; }
+    @media print {
+      body { background: white; }
+      .page { padding: 0; }
+      .sheet { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+`
+
+      const HOURS: string[] = []
+      for (let m = START_MINUTE; m <= END_MINUTE; m += 60) {
+        HOURS.push(toHHMM(m))
+      }
+
+      const classPages = classes
+        .map((cls) => {
+          const classSessions = scheduledSessions.filter((s) => s.course.schoolClass.id === cls.id)
+
+          const dayColsHtml = DAYS.map((_, dayIdx) => {
+            const sessionsThisDay = classSessions.filter((s) => (s.dayOfWeek ?? 1) - 1 === dayIdx)
+            const blocksHtml = sessionsThisDay
+              .map((ses) => {
+                const top = ((ses.startMinute - START_MINUTE) / 60) * PX_PER_HOUR + 4
+                const height = ((ses.endMinute - ses.startMinute) / 60) * PX_PER_HOUR - 8
+                const subject = ses.course.subject.name
+                const teacher = ses.course.professor.name
+                const room = ses.room.name
+                const bg = SUBJECT_COLORS[subject] || '#1a3a5c'
+                return `
+<div class="block" style="top:${top}px;height:${height}px;background:${escapeHtml(bg)};">
+  <div class="sub">${escapeHtml(subject)}</div>
+  <div class="line">${escapeHtml(teacher)}</div>
+  <div class="line">${escapeHtml(room)}</div>
+  <div class="line">${escapeHtml(toHHMM(ses.startMinute))}–${escapeHtml(toHHMM(ses.endMinute))}</div>
+</div>
+`
+              })
+              .join('')
+
+            const hourLines = HOURS.map(() => `<div class="hourLine"></div>`).join('')
+            return `<div class="dayCol">${hourLines}${blocksHtml}</div>`
+          }).join('')
+
+          const headerDaysHtml = DAYS.map((d) => `<div class="dayHeader"><div class="dayName">${escapeHtml(d)}</div></div>`).join('')
+          const timeColHtml = HOURS.map((h) => `<div class="timeCell">${escapeHtml(h)}</div>`).join('')
+
+          return `
+<div class="page">
+  <div class="titleRow">
+    <div class="title">Planning — ${escapeHtml(cls.name)}</div>
+    <div class="meta">Export PDF</div>
+  </div>
+  <div class="sheet">
+    <div class="gridHeader">
+      <div class="timeCol"></div>
+      ${headerDaysHtml}
+    </div>
+    <div class="gridBody">
+      <div class="timeCol">${timeColHtml}</div>
+      ${dayColsHtml}
+    </div>
+  </div>
+</div>
+`
+        })
+        .join('')
+
+      const footerHtml = `
+</body>
+</html>
+`
+
+      w.document.open()
+      w.document.write(headerHtml + classPages + footerHtml)
+      w.document.close()
+
+      w.focus()
+      const triggerPrint = () => {
+        try {
+          w.print()
+        } catch {
+          // ignore
+        }
+      }
+
+      if ((w.document as any).fonts?.ready) {
+        ;(w.document as any).fonts.ready.then(triggerPrint).catch(triggerPrint)
+      } else {
+        w.setTimeout(triggerPrint, 250)
+      }
+    } catch (e) {
+      setPlanningIoError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   async function exportPlanningXlsx() {
     setPlanningIoError('')
     try {
@@ -883,6 +1087,7 @@ export default function AppEduPlan() {
               setSelectedClass={setQuickClassId}
               onExportCsv={exportPlanningCsv}
               onExportXlsx={exportPlanningXlsx}
+              onExportPdf={exportPlanningPdf}
               onImportCsv={importPlanningCsv}
               onImportFile={importPlanningFile}
               onMoveSession={moveScheduledSession}
